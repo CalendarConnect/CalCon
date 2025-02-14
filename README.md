@@ -1,4 +1,4 @@
-# Next.js 15 Starter Kit
+# Next.js 15
 
 A modern, feature-rich starter template for building production-ready applications with Next.js 15, Tailwind CSS, and TypeScript.
 
