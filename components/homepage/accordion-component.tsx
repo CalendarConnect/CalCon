@@ -10,8 +10,8 @@ import { motion } from "motion/react"
 
 const faqs = [
     {
-        question: "What exactly can others see when I share my calendar?",
-        answer: "Only your free/busy status - nothing more. No event details, no participant information, no meeting titles, and no locations. Your calendar privacy stays completely protected."
+        question: "What can my business contacts see when I connect my calendar?",
+        answer: "The CalCon algorithm analyzes the timeslots you are free, and calculates the best date and time for them to meet with you."
     },
     {
         question: "How does the Founding 1000 program work?",
@@ -19,7 +19,7 @@ const faqs = [
     },
     {
         question: "Which calendar systems does CalCon support?",
-        answer: "We currently support Google Calendar and Outlook, with more platforms joining regularly. All integrations use official calendar APIs with our privacy-first approach, ensuring your data stays secure."
+        answer: "We currently support Google Calendar and Outlook. All integrations use official calendar APIs with our privacy-first approach, ensuring your data stays secure."
     },
     {
         question: "How is CalCon different from other scheduling tools?",

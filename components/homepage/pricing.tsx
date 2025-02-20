@@ -34,6 +34,7 @@ type PricingCardProps = {
   actionLabel: string;
   popular?: boolean;
   exclusive?: boolean;
+  planType: "free" | "pro";
 };
 
 const PricingHeader = ({
@@ -87,28 +88,46 @@ const PricingCard = ({
   actionLabel,
   popular,
   exclusive,
+  planType,
 }: PricingCardProps) => {
   const router = useRouter();
 
   const getProCheckoutUrl = useAction(api.subscriptions.getProOnboardingCheckoutUrl);
+  const getOnboardingCheckoutUrl = useAction(api.subscriptions.getOnboardingCheckoutUrl);
   const subscriptionStatus = useQuery(api.subscriptions.getUserSubscriptionStatus);
 
-
-
-  const handleCheckout = async (interval: "month" | "year") => {
+  const handleCheckout = async (planType: "free" | "pro", interval?: "month" | "year") => {
     try {
-      const checkoutProUrl = await getProCheckoutUrl({
-        interval
-      });
+      if (!user) {
+        router.push("/sign-in");
+        return;
+      }
 
-      if (checkoutProUrl) {
-        window.location.href = checkoutProUrl;
+      let checkoutUrl;
+      if (planType === "pro") {
+        checkoutUrl = await getProCheckoutUrl({
+          interval: interval || "month"
+        });
+      } else {
+        // For free plan
+        console.log("Getting free plan checkout URL...");
+        checkoutUrl = await getOnboardingCheckoutUrl();
+        console.log("Got free plan URL:", checkoutUrl);
+      }
+
+      if (checkoutUrl) {
+        console.log("Redirecting to:", checkoutUrl);
+        window.location.href = checkoutUrl;
+      } else {
+        console.error("No checkout URL returned");
+        alert("Error: No checkout URL returned. Please try again.");
       }
     } catch (error) {
       console.error("Failed to get checkout URL:", error);
+      // Show error to user instead of immediate redirect
+      alert(`Error: ${error instanceof Error ? error.message : "Failed to get checkout URL"}`);
     }
   };
-
 
   return (
     <Card
@@ -182,7 +201,7 @@ const PricingCard = ({
               router.push("/sign-in");
               return;
             }
-            handleCheckout("month")
+            handleCheckout(planType, isYearly ? "year" : "month");
           }}
           className={cn("w-full", {
             "bg-blue-500 hover:bg-blue-400": popular,
@@ -196,7 +215,6 @@ const PricingCard = ({
   );
 };
 
-
 export default function Pricing() {
   const [isYearly, setIsYearly] = useState<boolean>(false);
   const togglePricingPeriod = (value: string) =>
@@ -205,18 +223,34 @@ export default function Pricing() {
 
   const plans = [
     {
+      title: "Free",
+      monthlyPrice: 0,
+      yearlyPrice: 0,
+      description: "Perfect for individuals and small teams getting started.",
+      features: [
+        "5 team members",
+        "10GB storage",
+        "Basic analytics",
+        "Email support",
+        "Community access",
+      ],
+      actionLabel: "Get Started",
+      planType: "free" as const,
+    },
+    {
       title: "Pro",
       monthlyPrice: 12,
       yearlyPrice: 100,
       description: "Advanced features for growing teams and businesses.",
       features: [
-        "All Basic features",
+        "All Free features",
         "Up to 20 team members",
         "50GB storage",
         "Priority support",
         "Advanced analytics",
       ],
       actionLabel: "Get Pro",
+      planType: "pro" as const,
       popular: true,
     },
   ];

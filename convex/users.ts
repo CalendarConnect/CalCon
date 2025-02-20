@@ -6,7 +6,7 @@ export const getUser = query({
     handler: async (ctx) => {
         const identity = await ctx.auth.getUserIdentity();
         if (identity === null) {
-            return ("Not authenticated");
+            return null;
         }
         return identity
     }

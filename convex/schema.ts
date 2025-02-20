@@ -35,7 +35,9 @@ export default defineSchema({
         subscription: v.optional(v.string()),
         credits: v.optional(v.string()),
         tokenIdentifier: v.string(),
-    }).index("by_token", ["tokenIdentifier"]),
+    })
+        .index("by_token", ["tokenIdentifier"])
+        .index("by_userId", ["userId"]),
     plans: defineTable({
         key: v.string(),
         name: v.string(),
@@ -80,5 +82,33 @@ export default defineSchema({
     })
         .index("type", ["type"])
         .index("polarEventId", ["polarEventId"]),
-
+    contacts: defineTable({
+        userId: v.string(),
+        contactUserId: v.optional(v.string()),
+        fullName: v.string(),
+        companyName: v.string(),
+        role: v.string(),
+        email: v.string(),
+        status: v.union(v.literal("connected"), v.literal("pending"), v.literal("declined")),
+        createdAt: v.string(),
+        updatedAt: v.string(),
+        senderName: v.optional(v.string()),
+        senderEmail: v.optional(v.string()),
+    })
+        .index("by_userId", ["userId"])
+        .index("by_email", ["email"])
+        .index("by_status", ["userId", "status"]),
+    events: defineTable({
+        userId: v.string(), // Creator's user ID
+        title: v.string(),
+        description: v.string(),
+        location: v.string(),
+        duration: v.string(), // Duration in minutes
+        participantIds: v.array(v.string()), // Array of contact IDs
+        status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("cancelled")),
+        createdAt: v.string(),
+        updatedAt: v.string(),
+    })
+        .index("by_userId", ["userId"])
+        .index("by_status", ["status"]),
 })

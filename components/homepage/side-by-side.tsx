@@ -6,19 +6,19 @@ import { motion } from "motion/react"
 
 const features = [
   {
-    name: 'Start Scheduling Better Today',
+    name: 'Find Meeting Times Instantly',
     description:
-      'Connect your calendars and start saving time immediately. Keep your privacy protected while growing your professional network.',
+      'One click finds the perfect time across time zones. What used to take hours now happens in seconds.',
     icon: Computer,
   },
   {
-    name: 'Protect Your Privacy',
-    description: 'Share only your availability, never your details. Your calendar data stays private while you coordinate efficiently with your network.',
+    name: 'Complete Calendar Privacy',
+    description: 'We only show if you are available or not. No event details. No meeting titles. No participant names. No locations. Ever.',
     icon: FaBusinessTime,
   },
   {
-    name: 'Grow Your Network',
-    description: 'Turn every scheduling interaction into a valuable connection. Build your professional network naturally through everyday calendar coordination.',
+    name: 'Grow Your Network Naturally',
+    description: 'Every scheduled meeting strengthens your professional network. Connect across any calendar platform with complete confidence.',
     icon: Network,
   },
 ]
@@ -45,10 +45,10 @@ export default function SideBySide() {
               </div>
 
               <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 dark:from-white dark:via-blue-300 dark:to-white pb-2">
-              Start Scheduling Better Today
+              Schedule in Seconds. Build Your Network.
               </h2>
               <p className="mt-6 text-lg text-gray-600 dark:text-gray-300">
-              Connect your calendars and start saving time immediately. Keep your privacy protected while growing your professional network.
+              When checking availability, we only show whether you can meet or not. Nothing else. Each quick scheduling decision builds your professional network, turning routine coordination into valuable business relationships.
               </p>
               <dl className="mt-10 max-w-xl space-y-8 text-base leading-7 text-gray-600 lg:max-w-none">
                 {features.map((feature, index) => (

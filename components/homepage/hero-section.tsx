@@ -36,8 +36,8 @@ export default function HeroSection() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 dark:from-white dark:via-blue-300 dark:to-white animate-gradient-x pb-2"
         >
-          The Calendar AI Agent<br className="hidden sm:block" />
-          for easy scheduling
+          Stop Wasting Hours<br className="hidden sm:block" />
+          On Meeting Planning
         </motion.h1>
 
         {/* Subtitle */}
@@ -47,7 +47,7 @@ export default function HeroSection() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto"
         >
-          Select your business contacts and CalCon will analyze their availability and help you organize the meeting in seconds.
+          Select your business contacts. Get the perfect time instantly. Your calendar remains completely private.
         </motion.p>
 
         {/* CTA Buttons */}
@@ -80,16 +80,6 @@ export default function HeroSection() {
               Join Discord
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
             </Button>
-          </Link>
-
-          <Link
-            href="https://github.com/michaelshimeles/nextjs14-starter-template"
-            target="_blank"
-            className="flex items-center gap-2 rounded-full px-6 py-2 h-12 border-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            aria-label="View on GitHub"
-          >
-            <Github className="w-5 h-5" aria-hidden="true" />
-            <span>Star on GitHub</span>
           </Link>
         </motion.div>
       </div>

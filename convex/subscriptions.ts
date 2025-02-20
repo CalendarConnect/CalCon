@@ -74,29 +74,32 @@ export const getOnboardingCheckoutUrl = action({
             key: "free",
         });
 
-        const price = product?.prices.month?.usd;
-
-        if (!price) {
-            throw new Error("Price not found");
+        if (!product) {
+            throw new Error("Free plan product not found");
         }
+
         if (!user.email) {
             throw new Error("User email not found");
         }
-        const metadata = {
-            userId: user.tokenIdentifier,
-            userEmail: user.email,
-            tokenIdentifier: identity.subject,
-            plan: "free"
-        };
 
-        const checkout = await createCheckout({
-            customerEmail: user.email,
-            productPriceId: price.polarId,
-            metadata,
-            successUrl: `${process.env.FRONTEND_URL}/success`,
+        // Use Polar's checkout flow even for free plans
+        const polar = new Polar({
+            server: "sandbox",
+            accessToken: process.env.POLAR_ACCESS_TOKEN,
         });
 
-        return checkout.url;
+        // Create a checkout session with the product ID instead of price ID
+        const result = await polar.checkouts.custom.create({
+            productId: product.polarProductId, // Use product ID instead of price ID
+            successUrl: `${process.env.FRONTEND_URL}/dashboard/events`,
+            customerEmail: user.email,
+            metadata: {
+                userId: user.tokenIdentifier,
+                plan: "free"
+            }
+        });
+
+        return result.url;
     },
 });
 
@@ -163,8 +166,8 @@ export const getProOnboardingCheckoutUrl = action({
 export const getUserSubscriptionStatus = query({
     handler: async (ctx) => {
         const identity = await ctx.auth.getUserIdentity();
-
         if (!identity) {
+            console.log("[Subscription Check] No identity found");
             return { hasActiveSubscription: false };
         }
 
@@ -176,6 +179,7 @@ export const getUserSubscriptionStatus = query({
             .unique();
 
         if (!user) {
+            console.log("[Subscription Check] No user found for token:", identity.subject);
             return { hasActiveSubscription: false };
         }
 
@@ -184,7 +188,15 @@ export const getUserSubscriptionStatus = query({
             .withIndex("userId", (q) => q.eq("userId", user.tokenIdentifier))
             .first();
 
+        console.log("[Subscription Check] Found subscription:", subscription ? {
+            userId: subscription.userId,
+            status: subscription.status,
+            polarId: subscription.polarId
+        } : "No subscription");
+
         const hasActiveSubscription = subscription?.status === "active";
+        console.log("[Subscription Check] Active subscription:", hasActiveSubscription);
+        
         return { hasActiveSubscription };
     }
 });
@@ -363,6 +375,33 @@ export const subscriptionStoreWebhook = mutation({
                 break;
         }
     },
+});
+
+export const updateFreePlan = mutation({
+    handler: async (ctx) => {
+        const existingPlan = await ctx.db
+            .query("plans")
+            .withIndex("key", (q) => q.eq("key", "free"))
+            .unique();
+
+        if (!existingPlan) {
+            throw new Error("Free plan not found");
+        }
+
+        // Update the plan with price information
+        await ctx.db.patch(existingPlan._id, {
+            prices: {
+                month: {
+                    usd: {
+                        amount: 0,
+                        polarId: existingPlan.polarProductId // Using the product ID as price ID for free plan
+                    }
+                }
+            }
+        });
+
+        return "Free plan updated successfully";
+    }
 });
 
 export const paymentWebhook = httpAction(async (ctx, request) => {

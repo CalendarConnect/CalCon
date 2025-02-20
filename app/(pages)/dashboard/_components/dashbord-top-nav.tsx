@@ -12,6 +12,9 @@ import { useAction, useQuery } from 'convex/react'
 import { Banknote, Folder, HomeIcon, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { ReactNode } from 'react'
+import { CalendarPlus } from 'lucide-react'
+import { useState } from 'react'
+import { CreateEventDialog } from '../events/_components/create-event-dialog'
 
 export default function DashboardTopNav({ children }: { children: ReactNode }) {
   const subscription = useQuery(api.subscriptions.getUserSubscription);
@@ -30,6 +33,8 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
       console.error("Error getting dashboard URL:", error);
     }
   };
+
+  const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
 
   return (
     <div className="flex flex-col">
@@ -77,11 +82,32 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
           </SheetContent>
         </Dialog>
         <div className="flex justify-center items-center gap-2 ml-auto">
-          <Button variant={"outline"} onClick={handleManageSubscription}>Manage Subscription</Button>
+          {subscription && (
+            subscription?.metadata?.plan === "pro" ? (
+              <Button variant={"outline"} onClick={handleManageSubscription}>
+                Manage Subscription
+              </Button>
+            ) : (
+              <Button variant={"outline"} onClick={handleManageSubscription}>
+                Upgrade to Pro
+              </Button>
+            )
+          )}
+          <Button
+            onClick={() => setIsCreateEventOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <CalendarPlus className="h-4 w-4" />
+            Create Event
+          </Button>
           {<UserProfile />}
           <ModeToggle />
         </div>
       </header>
+      <CreateEventDialog
+        open={isCreateEventOpen}
+        onOpenChange={setIsCreateEventOpen}
+      />
       {children}
     </div>
   )

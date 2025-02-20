@@ -11,7 +11,7 @@ export function FAQ() {
             <AccordionItem value="item-1">
                 <AccordionTrigger>What exactly can others see when I share my calendar?</AccordionTrigger>
                 <AccordionContent>
-                Only your free/busy status - nothing more. No event details, no participant information, no meeting titles, and no locations. Your calendar privacy stays completely protected.
+                Your calendar information stays completely private. No event details, no participant information, no meeting titles, and no locations. Your calendar privacy stays completely protected.
                 </AccordionContent>
             </AccordionItem>
             <AccordionItem value="item-2">

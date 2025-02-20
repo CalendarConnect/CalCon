@@ -3,10 +3,12 @@
 import clsx from 'clsx'
 import {
   Banknote,
+  CalendarDays,
   Folder,
   HomeIcon,
   Settings,
-  LucideIcon
+  LucideIcon,
+  Users
 } from "lucide-react"
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -22,6 +24,16 @@ const navItems: NavItem[] = [
     label: "Overview",
     href: "/dashboard",
     icon: HomeIcon
+  },
+  {
+    label: "Contacts",
+    href: "/dashboard/contacts",
+    icon: Users
+  },
+  {
+    label: "Events",
+    href: "/dashboard/events",
+    icon: CalendarDays
   },
   {
     label: "Finance",
