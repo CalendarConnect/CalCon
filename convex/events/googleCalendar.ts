@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { RecommendedTimeSlot, TimeSlot } from "../../lib/google-calendar";
+import { RecommendedTimeSlot, TimeSlot, googleCalendarAPI } from "../../lib/google-calendar";
 
 // Helper function to generate time slots for a given duration and date range
 function generateTimeSlots(
@@ -51,24 +51,26 @@ export const getRecommendedTimeSlots = mutation({
             duration
         );
 
-        // Get availability for all participants
-        // This will be implemented to call Google Calendar API
-        const recommendedSlots: RecommendedTimeSlot[] = timeSlots.map(slot => ({
-            ...slot,
-            score: 0, // Will be calculated based on availability
-            participantAvailability: event.participantIds.map(id => ({
-                participantId: id,
-                available: true, // Will be determined by Google Calendar
-                conflictingEventIds: []
-            }))
-        }));
+        try {
+            // Get availability for all participants using Google Calendar API
+            const recommendedSlots = await googleCalendarAPI.checkAvailability(
+                timeSlots,
+                event.participantIds
+            );
 
-        // Update the event with recommended time slots
-        await ctx.db.patch(args.eventId, {
-            recommendedTimeSlots: recommendedSlots
-        });
+            // Sort slots by score (highest first)
+            const sortedSlots = [...recommendedSlots].sort((a, b) => b.score - a.score);
 
-        return recommendedSlots;
+            // Update the event with recommended time slots
+            await ctx.db.patch(args.eventId, {
+                recommendedTimeSlots: sortedSlots
+            });
+
+            return sortedSlots;
+        } catch (error) {
+            console.error("Failed to get calendar availability:", error);
+            throw new Error("Failed to get calendar availability");
+        }
     },
 });
 
@@ -82,20 +84,33 @@ export const selectTimeSlot = mutation({
         const event = await ctx.db.get(args.eventId);
         if (!event) throw new Error("Event not found");
 
-        // Update the event with selected time slot
-        await ctx.db.patch(args.eventId, {
-            selectedTimeSlot: {
+        try {
+            // Create event in Google Calendar
+            const googleEventId = await googleCalendarAPI.createEvent({
+                summary: event.title,
+                description: event.description,
                 start: args.startTime,
                 end: args.endTime,
-                confirmedParticipants: [] // Will be populated as participants confirm
-            },
-            startTime: args.startTime,
-            endTime: args.endTime
-        });
+                attendees: event.participantIds
+            });
 
-        // Create event in Google Calendar
-        // This will be implemented to call Google Calendar API
-        return { success: true };
+            // Update the event with selected time slot and Google Calendar ID
+            await ctx.db.patch(args.eventId, {
+                selectedTimeSlot: {
+                    start: args.startTime,
+                    end: args.endTime,
+                    confirmedParticipants: []
+                },
+                startTime: args.startTime,
+                endTime: args.endTime,
+                googleCalendarEventId: googleEventId
+            });
+
+            return { success: true, googleEventId };
+        } catch (error) {
+            console.error("Failed to create Google Calendar event:", error);
+            throw new Error("Failed to create Google Calendar event");
+        }
     },
 });
 
@@ -107,12 +122,25 @@ export const syncWithGoogleCalendar = mutation({
         const event = await ctx.db.get(args.eventId);
         if (!event) throw new Error("Event not found");
         if (!event.selectedTimeSlot) throw new Error("No time slot selected");
+        if (!event.googleCalendarEventId) throw new Error("No Google Calendar event ID found");
 
-        // This will be implemented to:
-        // 1. Create/update event in Google Calendar
-        // 2. Send invites to participants
-        // 3. Store Google Calendar event ID
-        
-        return { success: true };
+        try {
+            // Update the Google Calendar event
+            await googleCalendarAPI.updateEvent(
+                event.googleCalendarEventId,
+                {
+                    summary: event.title,
+                    description: event.description,
+                    start: event.selectedTimeSlot.start,
+                    end: event.selectedTimeSlot.end,
+                    attendees: event.participantIds
+                }
+            );
+
+            return { success: true };
+        } catch (error) {
+            console.error("Failed to sync with Google Calendar:", error);
+            throw new Error("Failed to sync with Google Calendar");
+        }
     },
 });

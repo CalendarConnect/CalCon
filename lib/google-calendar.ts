@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs";
+import { GoogleCalendarAPIClient } from "./google-calendar-api";
 
 export interface GoogleCalendarCredentials {
     access_token: string;
@@ -24,6 +25,7 @@ export interface RecommendedTimeSlot extends TimeSlot {
 
 class GoogleCalendarAPI {
     private credentials: GoogleCalendarCredentials | null = null;
+    private apiClient: GoogleCalendarAPIClient | null = null;
     private static instance: GoogleCalendarAPI;
 
     private constructor() {}
@@ -43,32 +45,65 @@ class GoogleCalendarAPI {
             throw new Error("No Google Calendar token found");
         }
 
-        // Store credentials securely
         this.credentials = {
             access_token: token,
             refresh_token: "", // Will be implemented with proper token refresh
             expiry_date: 0 // Will be implemented with proper token management
         };
+
+        this.apiClient = new GoogleCalendarAPIClient(token);
+    }
+
+    private async ensureInitialized() {
+        if (!this.credentials || !this.apiClient) {
+            await this.initialize();
+        }
     }
 
     async checkAvailability(
         timeSlots: TimeSlot[],
         participantIds: string[]
     ): Promise<RecommendedTimeSlot[]> {
-        if (!this.credentials) {
-            await this.initialize();
-        }
+        await this.ensureInitialized();
+        if (!this.apiClient) throw new Error("API client not initialized");
 
-        // Will implement the actual API calls to Google Calendar
-        // This is a placeholder for the implementation
-        return timeSlots.map(slot => ({
-            ...slot,
-            score: 0,
-            participantAvailability: participantIds.map(id => ({
-                participantId: id,
-                available: false
-            }))
-        }));
+        const timeMin = timeSlots[0].start;
+        const timeMax = timeSlots[timeSlots.length - 1].end;
+
+        // Get busy periods for all participants
+        const freeBusy = await this.apiClient.getFreeBusy(
+            timeMin,
+            timeMax,
+            participantIds
+        );
+
+        // Calculate availability and scores for each time slot
+        return timeSlots.map(slot => {
+            const participantAvailability = participantIds.map(id => {
+                const busyPeriods = freeBusy.calendars[id]?.busy || [];
+                const hasConflict = busyPeriods.some(
+                    period =>
+                        new Date(period.start) < new Date(slot.end) &&
+                        new Date(period.end) > new Date(slot.start)
+                );
+
+                return {
+                    participantId: id,
+                    available: !hasConflict,
+                    conflictingEventIds: [] // Could be populated if needed
+                };
+            });
+
+            // Calculate score based on availability
+            const availableCount = participantAvailability.filter(p => p.available).length;
+            const score = (availableCount / participantIds.length) * 100;
+
+            return {
+                ...slot,
+                score,
+                participantAvailability
+            };
+        });
     }
 
     async createEvent(
@@ -80,13 +115,11 @@ class GoogleCalendarAPI {
             attendees: string[];
         }
     ): Promise<string> {
-        if (!this.credentials) {
-            await this.initialize();
-        }
+        await this.ensureInitialized();
+        if (!this.apiClient) throw new Error("API client not initialized");
 
-        // Will implement the actual API calls to Google Calendar
-        // This is a placeholder that returns a mock event ID
-        return "mock_event_id";
+        const response = await this.apiClient.createEvent(eventDetails);
+        return response.id;
     }
 
     async updateEvent(
@@ -99,19 +132,17 @@ class GoogleCalendarAPI {
             attendees: string[];
         }>
     ): Promise<void> {
-        if (!this.credentials) {
-            await this.initialize();
-        }
+        await this.ensureInitialized();
+        if (!this.apiClient) throw new Error("API client not initialized");
 
-        // Will implement the actual API calls to Google Calendar
+        await this.apiClient.updateEvent(googleEventId, updates);
     }
 
     async deleteEvent(googleEventId: string): Promise<void> {
-        if (!this.credentials) {
-            await this.initialize();
-        }
+        await this.ensureInitialized();
+        if (!this.apiClient) throw new Error("API client not initialized");
 
-        // Will implement the actual API calls to Google Calendar
+        await this.apiClient.deleteEvent(googleEventId);
     }
 }
 
