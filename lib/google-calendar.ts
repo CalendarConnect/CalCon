@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs";
 import { GoogleCalendarAPIClient } from "./google-calendar-api";
+import { tokenManager } from "./token-manager";
 
 export interface GoogleCalendarCredentials {
     access_token: string;
@@ -24,7 +25,6 @@ export interface RecommendedTimeSlot extends TimeSlot {
 }
 
 class GoogleCalendarAPI {
-    private credentials: GoogleCalendarCredentials | null = null;
     private apiClient: GoogleCalendarAPIClient | null = null;
     private static instance: GoogleCalendarAPI;
 
@@ -38,24 +38,16 @@ class GoogleCalendarAPI {
     }
 
     async initialize(): Promise<void> {
-        const { getToken } = auth();
-        const token = await getToken({ template: "google-calendar" });
-        
+        const token = await tokenManager.getToken("google-calendar");
         if (!token) {
             throw new Error("No Google Calendar token found");
         }
-
-        this.credentials = {
-            access_token: token,
-            refresh_token: "", // Will be implemented with proper token refresh
-            expiry_date: 0 // Will be implemented with proper token management
-        };
 
         this.apiClient = new GoogleCalendarAPIClient(token);
     }
 
     private async ensureInitialized() {
-        if (!this.credentials || !this.apiClient) {
+        if (!this.apiClient) {
             await this.initialize();
         }
     }
