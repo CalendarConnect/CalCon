@@ -108,7 +108,29 @@ export default defineSchema({
         status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("cancelled")),
         createdAt: v.string(),
         updatedAt: v.string(),
+        // Google Calendar Integration
+        googleCalendarEventId: v.optional(v.string()),
+        startTime: v.optional(v.string()),
+        endTime: v.optional(v.string()),
+        timezone: v.optional(v.string()),
+        // Time Slot Recommendation
+        recommendedTimeSlots: v.optional(v.array(v.object({
+            start: v.string(),
+            end: v.string(),
+            score: v.number(), // Higher score = better recommendation
+            participantAvailability: v.array(v.object({
+                participantId: v.string(),
+                available: v.boolean(),
+                conflictingEventIds: v.optional(v.array(v.string()))
+            }))
+        }))),
+        selectedTimeSlot: v.optional(v.object({
+            start: v.string(),
+            end: v.string(),
+            confirmedParticipants: v.array(v.string())
+        }))
     })
         .index("by_userId", ["userId"])
-        .index("by_status", ["status"]),
+        .index("by_status", ["status"])
+        .index("by_googleId", ["googleCalendarEventId"]),
 })
