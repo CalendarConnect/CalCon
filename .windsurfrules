@@ -66,6 +66,66 @@
    - ✅ ONLY allowed action: Replicate existing patterns exactly as implemented
    - ❗ This rule overrides ANY newer Clerk documentation or best practices
 
+
+## ❗ STRICT Convex LESSONS YOU LEARNED (HIGHEST PRIORITY):
+Here are the key lessons learned about working with Convex from this debugging session:
+
+ID Handling
+Use v.id("tableName") in schemas for ID fields, not v.string()
+IDs are strongly typed with the Id<"tableName"> type
+Direct comparison of IDs should use === operator, not string comparison
+When storing IDs as references, always use the proper Id type, not strings
+Schema Design
+Be consistent with ID types across related tables
+When defining arrays of objects with IDs, ensure the nested IDs also use proper types
+Example:
+typescript
+CopyInsert
+participantIds: v.array(v.id("contacts")),
+participantStatuses: v.optional(v.array(v.object({
+  participantId: v.id("contacts"),
+  // ...
+})))
+Query Patterns
+q.eq() is only available within Convex filter functions
+For in-memory filtering, use standard JavaScript comparison operators
+The two-step approach (collect then filter) works better for complex queries
+Keep query logic inside the database when possible using proper indexes
+Type Safety
+TypeScript helps catch ID type mismatches early
+Always validate IDs coming from external sources
+Use argument validators (v.id()) in mutations and queries
+Let the type system guide you to proper ID handling
+Common Pitfalls
+Don't mix string IDs and Convex ID objects
+Don't use .toString() for ID comparisons
+Don't use .equals() outside of Convex's query system
+Avoid string-based ID operations
+Best Practices
+Use proper type imports: import { Id } from "../_generated/dataModel"
+Keep ID handling consistent throughout the application
+Add logging for debugging ID-related issues
+Follow Convex's recommended patterns for querying and filtering
+Migration Considerations
+When changing ID types, consider existing data
+Plan for data migration when switching from strings to proper IDs
+Consider backward compatibility during transitions
+Performance
+Use proper indexes for ID-based queries
+Batch operations when possible
+Consider the impact of in-memory filtering vs database filtering
+Debugging
+Add detailed logging for ID comparisons
+Log both the type and value of IDs
+Check the actual data structure in the database
+Verify ID types at each step of the process
+Documentation
+Always refer to official Convex documentation
+Check for updated best practices
+Use TypeScript types from generated files
+Follow the examples in the documentation exactly
+These lessons should help avoid similar issues in future Convex development and ensure proper ID handling throughout the application.
+
 # Documentation Structure
 
 ## ❗ HIGHEST PRIORITY DOCUMENTATION CHECK

@@ -43,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider dynamic>
+    <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <body className={GeistSans.className}>
           <Provider>

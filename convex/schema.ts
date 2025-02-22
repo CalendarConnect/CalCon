@@ -104,33 +104,17 @@ export default defineSchema({
         description: v.string(),
         location: v.string(),
         duration: v.string(), // Duration in minutes
-        participantIds: v.array(v.string()), // Array of contact IDs
         status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("cancelled")),
         createdAt: v.string(),
         updatedAt: v.string(),
-        // Google Calendar Integration
-        googleCalendarEventId: v.optional(v.string()),
-        startTime: v.optional(v.string()),
-        endTime: v.optional(v.string()),
-        timezone: v.optional(v.string()),
-        // Time Slot Recommendation
-        recommendedTimeSlots: v.optional(v.array(v.object({
-            start: v.string(),
-            end: v.string(),
-            score: v.number(), // Higher score = better recommendation
-            participantAvailability: v.array(v.object({
-                participantId: v.string(),
-                available: v.boolean(),
-                conflictingEventIds: v.optional(v.array(v.string()))
-            }))
-        }))),
-        selectedTimeSlot: v.optional(v.object({
-            start: v.string(),
-            end: v.string(),
-            confirmedParticipants: v.array(v.string())
-        }))
     })
-        .index("by_userId", ["userId"])
-        .index("by_status", ["status"])
-        .index("by_googleId", ["googleCalendarEventId"]),
+        .index("by_status", ["userId", "status"]),
+    eventParticipants: defineTable({
+        eventId: v.id("events"),
+        participantId: v.id("contacts"),
+        status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("declined")),
+        updatedAt: v.string()
+    })
+        .index("by_participant", ["participantId"])
+        .index("by_event", ["eventId"]),
 })

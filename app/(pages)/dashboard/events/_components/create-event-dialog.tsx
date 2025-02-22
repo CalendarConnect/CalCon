@@ -50,7 +50,7 @@ const formSchema = z.object({
   duration: z.enum(["15", "30", "45", "60", "120", "180"], {
     required_error: "Duration is required",
   }),
-  participantIds: z.array(z.string()).min(1, "At least one participant is required"),
+  participantIds: z.array(z.custom<Id<"contacts">>()),
 });
 
 interface CreateEventDialogProps {
@@ -71,6 +71,9 @@ export const CreateEventDialog = ({
     userId: user?.id || "",
   });
 
+  // Filter for only connected contacts
+  const connectedContacts = contacts?.filter((contact) => contact.status === "connected");
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -86,6 +89,23 @@ export const CreateEventDialog = ({
     try {
       setIsLoading(true);
       console.log("Creating event with values:", values);
+
+      // Validate that we have at least one participant
+      if (values.participantIds.length === 0) {
+        toast.error("Please select at least one participant");
+        return;
+      }
+
+      // Validate that all participants are connected
+      const allConnected = values.participantIds.every((id) =>
+        connectedContacts?.some((contact) => contact._id === id)
+      );
+
+      if (!allConnected) {
+        toast.error("Can only invite connected contacts");
+        return;
+      }
+
       await createEvent({
         userId: user?.id || "",
         title: values.title,
@@ -99,7 +119,11 @@ export const CreateEventDialog = ({
       onOpenChange(false);
     } catch (error) {
       console.error("Failed to create event:", error);
-      toast.error(`Failed to create event: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(
+        `Failed to create event: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     } finally {
       setIsLoading(false);
     }
@@ -184,34 +208,55 @@ export const CreateEventDialog = ({
                   <FormLabel>Participants</FormLabel>
                   <FormControl>
                     <Select
-                      onValueChange={(value) => field.onChange([...field.value, value])}
-                      value={field.value[field.value.length - 1] || ""}
+                      onValueChange={(value) => {
+                        const contactId = value as Id<"contacts">;
+                        // Only add if not already selected and contact is connected
+                        if (
+                          !field.value.includes(contactId) &&
+                          connectedContacts?.some((c) => c._id === contactId)
+                        ) {
+                          field.onChange([...field.value, contactId]);
+                        }
+                      }}
+                      value=""
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select participants" />
+                        <SelectValue placeholder="Add participants" />
                       </SelectTrigger>
                       <SelectContent>
-                        {contacts?.map((contact) => (
-                          <SelectItem key={contact._id} value={contact._id}>
-                            {contact.fullName} ({contact.email})
-                          </SelectItem>
-                        ))}
+                        {connectedContacts
+                          ?.filter((contact) => !field.value.includes(contact._id))
+                          .map((contact) => (
+                            <SelectItem key={contact._id} value={contact._id}>
+                              {contact.fullName || contact.email}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </FormControl>
                   {field.value.length > 0 && (
                     <div className="mt-2 space-y-2">
+                      <div className="text-sm text-muted-foreground mb-2">
+                        Selected Participants ({field.value.length}):
+                      </div>
                       {field.value.map((participantId) => {
-                        const contact = contacts?.find((c) => c._id === participantId);
+                        const contact = connectedContacts?.find(
+                          (c) => c._id === participantId
+                        );
                         return contact ? (
-                          <div key={participantId} className="flex items-center justify-between bg-secondary p-2 rounded-md">
-                            <span>{contact.fullName}</span>
+                          <div
+                            key={participantId}
+                            className="flex items-center justify-between bg-secondary p-2 rounded-md"
+                          >
+                            <span>{contact.fullName || contact.email}</span>
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
                               onClick={() => {
-                                field.onChange(field.value.filter((id) => id !== participantId));
+                                field.onChange(
+                                  field.value.filter((id) => id !== participantId)
+                                );
                               }}
                             >
                               Remove

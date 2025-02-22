@@ -8,7 +8,8 @@ import {
   HomeIcon,
   Settings,
   LucideIcon,
-  Users
+  Users,
+  Sparkles
 } from "lucide-react"
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -55,7 +56,8 @@ export default function DashboardSideBar() {
       <div className="flex h-full flex-col">
         <div className="flex h-[3.45rem] items-center border-b px-4">
           <Link prefetch={true} className="flex items-center gap-2 font-semibold hover:cursor-pointer" href="/">
-            <span>Nextjs Starter Kit</span>
+            <Sparkles className="h-5 w-5 text-blue-600" />
+            <span>CalCon</span>
           </Link>
         </div>
 
@@ -72,7 +74,7 @@ export default function DashboardSideBar() {
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className={clsx("h-4 w-4 text-blue-600")} />
               {item.label}
             </Link>
           ))}

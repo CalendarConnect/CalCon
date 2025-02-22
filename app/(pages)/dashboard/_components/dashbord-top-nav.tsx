@@ -9,7 +9,7 @@ import { UserProfile } from '@/components/user-profile'
 import { api } from '@/convex/_generated/api'
 import { HamburgerMenuIcon } from '@radix-ui/react-icons'
 import { useAction, useQuery } from 'convex/react'
-import { Banknote, Folder, HomeIcon, Settings } from 'lucide-react'
+import { Banknote, Folder, HomeIcon, Settings, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import { ReactNode } from 'react'
 import { CalendarPlus } from 'lucide-react'
@@ -49,14 +49,17 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
           <SheetContent side="left">
             <SheetHeader>
               <Link href="/">
-                <SheetTitle>Nextjs Starter Kit</SheetTitle>
+                <SheetTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-blue-600" />
+                  <span>CalCon</span>
+                </SheetTitle>
               </Link>
             </SheetHeader>
             <div className="flex flex-col space-y-3 mt-[1rem]">
               <DialogClose asChild>
                 <Link href="/dashboard">
                   <Button variant="outline" className="w-full">
-                    <HomeIcon className="mr-2 h-4 w-4" />
+                    <HomeIcon className="mr-2 h-4 w-4 text-blue-600" />
                     Home
                   </Button>
                 </Link>
@@ -64,7 +67,7 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
               <DialogClose asChild>
                 <Link href="/dashboard/finance">
                   <Button variant="outline" className="w-full">
-                    <Banknote className="mr-2 h-4 w-4" />
+                    <Banknote className="mr-2 h-4 w-4 text-blue-600" />
                     Finance
                   </Button>
                 </Link>
@@ -73,7 +76,7 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
               <DialogClose asChild>
                 <Link href="/dashboard/settings">
                   <Button variant="outline" className="w-full">
-                    <Settings className="mr-2 h-4 w-4" />
+                    <Settings className="mr-2 h-4 w-4 text-blue-600" />
                     Settings
                   </Button>
                 </Link>
@@ -95,7 +98,7 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
           )}
           <Button
             onClick={() => setIsCreateEventOpen(true)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
           >
             <CalendarPlus className="h-4 w-4" />
             Create Event

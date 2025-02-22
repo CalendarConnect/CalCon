@@ -10,6 +10,28 @@ import {
 } from "./_generated/server";
 import schema from "./schema";
 
+// Free plan configuration
+export const FREE_PLAN = {
+    key: "free",
+    name: "Free Plan",
+    description: "The Free Tier",
+    polarProductId: "953a008a-c4ef-4dac-9ede-6be6de6978b0", // This should be your free plan product ID from Polar
+    prices: {
+        month: {
+            usd: {
+                amount: 0,
+                polarId: "free" // Not used for free plan
+            }
+        },
+        year: {
+            usd: {
+                amount: 0,
+                polarId: "free" // Not used for free plan
+            }
+        }
+    }
+} as const;
+
 const createCheckout = async ({
     customerEmail,
     productPriceId,
@@ -82,22 +104,37 @@ export const getOnboardingCheckoutUrl = action({
             throw new Error("User email not found");
         }
 
-        // Use Polar's checkout flow even for free plans
+        // Use Polar's checkout flow for free plans
         const polar = new Polar({
             server: "sandbox",
             accessToken: process.env.POLAR_ACCESS_TOKEN,
         });
 
-        // Create a checkout session with the product ID instead of price ID
+        console.log("Creating free plan checkout with:", {
+            productId: product.polarProductId,
+            email: user.email,
+            metadata: {
+                userId: user.tokenIdentifier,
+                userEmail: user.email,
+                tokenIdentifier: identity.subject,
+                plan: "free"
+            }
+        });
+
+        // Create a checkout session with the product ID for free plan
         const result = await polar.checkouts.custom.create({
-            productId: product.polarProductId, // Use product ID instead of price ID
+            productId: product.polarProductId,
             successUrl: `${process.env.FRONTEND_URL}/dashboard/events`,
             customerEmail: user.email,
             metadata: {
                 userId: user.tokenIdentifier,
+                userEmail: user.email,
+                tokenIdentifier: identity.subject,
                 plan: "free"
             }
         });
+
+        console.log("Created free plan checkout:", result);
 
         return result.url;
     },
@@ -237,6 +274,20 @@ export const subscriptionStoreWebhook = mutation({
         // Extract event type from webhook payload
         const eventType = args.body.type;
 
+        console.log("Received webhook event:", {
+            type: eventType,
+            data: args.body.data,
+            metadata: args.body.data.metadata,
+            userId: args.body.data.metadata?.userId,
+            plan: args.body.data.metadata?.plan
+        });
+
+        // Validate required metadata
+        if (!args.body.data.metadata?.userId) {
+            console.error("Missing userId in webhook metadata:", args.body.data.metadata);
+            throw new Error("Missing userId in webhook metadata");
+        }
+
         // Store webhook event
         await ctx.db.insert("webhookEvents", {
             type: eventType,
@@ -248,19 +299,18 @@ export const subscriptionStoreWebhook = mutation({
 
         switch (eventType) {
             case 'subscription.created':
-
-                // Insert new subscription
-                await ctx.db.insert("subscriptions", {
+                // Handle both paid and free subscriptions
+                const subscriptionData = {
                     polarId: args.body.data.id,
-                    polarPriceId: args.body.data.price_id,
-                    currency: args.body.data.currency,
-                    interval: args.body.data.recurring_interval,
+                    polarPriceId: args.body.data.price_id || args.body.data.product_id, // Use product_id as fallback for free plans
+                    currency: args.body.data.currency || "usd", // Default to USD for free plans
+                    interval: args.body.data.recurring_interval || "month", // Default to monthly for free plans
                     userId: args.body.data.metadata.userId,
                     status: args.body.data.status,
                     currentPeriodStart: new Date(args.body.data.current_period_start).getTime(),
                     currentPeriodEnd: new Date(args.body.data.current_period_end).getTime(),
                     cancelAtPeriodEnd: args.body.data.cancel_at_period_end,
-                    amount: args.body.data.amount,
+                    amount: args.body.data.amount || 0, // Default to 0 for free plans
                     startedAt: new Date(args.body.data.started_at).getTime(),
                     endedAt: args.body.data.ended_at
                         ? new Date(args.body.data.ended_at).getTime()
@@ -273,7 +323,9 @@ export const subscriptionStoreWebhook = mutation({
                     metadata: args.body.data.metadata || {},
                     customFieldData: args.body.data.custom_field_data || {},
                     customerId: args.body.data.customer_id
-                });
+                };
+
+                await ctx.db.insert("subscriptions", subscriptionData);
                 break;
 
             case 'subscription.updated':
@@ -379,29 +431,21 @@ export const subscriptionStoreWebhook = mutation({
 
 export const updateFreePlan = mutation({
     handler: async (ctx) => {
-        const existingPlan = await ctx.db
+        // Check if free plan already exists
+        const existingFreePlan = await ctx.db
             .query("plans")
-            .withIndex("key", (q) => q.eq("key", "free"))
+            .withIndex("key", (q) => q.eq("key", FREE_PLAN.key))
             .unique();
 
-        if (!existingPlan) {
-            throw new Error("Free plan not found");
+        if (existingFreePlan) {
+            return existingFreePlan;
         }
 
-        // Update the plan with price information
-        await ctx.db.patch(existingPlan._id, {
-            prices: {
-                month: {
-                    usd: {
-                        amount: 0,
-                        polarId: existingPlan.polarProductId // Using the product ID as price ID for free plan
-                    }
-                }
-            }
-        });
+        // Insert the free plan
+        const freePlan = await ctx.db.insert("plans", FREE_PLAN);
 
-        return "Free plan updated successfully";
-    }
+        return freePlan;
+    },
 });
 
 export const paymentWebhook = httpAction(async (ctx, request) => {

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query } from "../_generated/server";
+import { Id } from "../_generated/dataModel";
 
 // Get all events for a user
 export const getEvents = query({
@@ -7,12 +8,54 @@ export const getEvents = query({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
+    console.log("========= Getting User Events =========");
+    console.log("User ID:", args.userId);
+
+    // Get user's events
     const events = await ctx.db
       .query("events")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .filter((q) => q.eq(q.field("userId"), args.userId))
       .collect();
 
-    return events;
+    console.log("Found events:", events);
+
+    // For each event, get participants and their statuses
+    const eventsWithParticipants = await Promise.all(
+      events.map(async (event) => {
+        console.log("Getting participants for event:", event._id);
+        
+        // Get all participants for this event
+        const participants = await ctx.db
+          .query("eventParticipants")
+          .withIndex("by_event", (q) => q.eq("eventId", event._id))
+          .collect();
+
+        console.log("Found participants:", participants);
+
+        // Get contact details for each participant
+        const participantsWithDetails = await Promise.all(
+          participants.map(async (participant) => {
+            const contact = await ctx.db.get(participant.participantId);
+            return {
+              ...participant,
+              contact
+            };
+          })
+        );
+
+        console.log("Participants with details:", participantsWithDetails);
+
+        return {
+          ...event,
+          participants: participantsWithDetails
+        };
+      })
+    );
+
+    console.log("Final events with participants:", eventsWithParticipants);
+    console.log("========= End Getting User Events =========");
+
+    return eventsWithParticipants;
   },
 });
 
@@ -23,7 +66,18 @@ export const getEventById = query({
   },
   handler: async (ctx, args) => {
     const event = await ctx.db.get(args.eventId);
-    return event;
+    if (!event) return null;
+
+    // Get all participants for this event
+    const participants = await ctx.db
+      .query("eventParticipants")
+      .withIndex("by_event", (q) => q.eq("eventId", args.eventId))
+      .collect();
+
+    return {
+      ...event,
+      participants
+    };
   },
 });
 
@@ -36,85 +90,135 @@ export const getEventsByStatus = query({
   handler: async (ctx, args) => {
     const events = await ctx.db
       .query("events")
-      .withIndex("by_status", (q) => q.eq("status", args.status))
-      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .withIndex("by_status", (q) => 
+        q.eq("userId", args.userId).eq("status", args.status)
+      )
       .collect();
 
     return events;
   },
 });
 
-// Get events where user is a participant
+// Get events where user is a participant with their status
 export const getInvitedEvents = query({
   args: {
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    console.log("Getting invited events for user:", args.userId);
+    console.log("========= Getting Invited Events =========");
+    console.log("User ID:", args.userId);
 
-    // Get all events where:
-    // 1. The user is not the creator
-    const invitedEvents = await ctx.db
-      .query("events")
-      .filter((q) => q.neq(q.field("userId"), args.userId))
+    // First get contacts where this user is the contact (not the owner)
+    const userAsContact = await ctx.db
+      .query("contacts")
+      .filter((q) => q.eq(q.field("contactUserId"), args.userId))
       .collect();
 
-    console.log("Found events:", invitedEvents);
+    console.log("User as contact:", userAsContact.map(c => ({ id: c._id, name: c.fullName })));
 
-    // Get all event creator user info
-    const creatorIds = [...new Set(invitedEvents.map(event => event.userId))];
-    console.log("Creator IDs:", creatorIds);
+    if (userAsContact.length === 0) {
+      console.log("No contacts found where user is contact");
+      return [];
+    }
 
-    const creators = await Promise.all(
-      creatorIds.map(async creatorId => {
-        const user = await ctx.db
-          .query("users")
-          .withIndex("by_userId", (q) => q.eq("userId", creatorId))
-          .first();
-        console.log(`Creator ${creatorId}:`, user);
-        return user;
+    // Get all event participations for these contacts
+    console.log("Fetching participations for contacts...");
+    const participations = await Promise.all(
+      userAsContact.map(async (contact) => {
+        console.log("Checking participations for contact:", contact._id);
+        const contactParticipations = await ctx.db
+          .query("eventParticipants")
+          .withIndex("by_participant", (q) => q.eq("participantId", contact._id))
+          .collect();
+        console.log("Found participations for contact:", contactParticipations);
+        return contactParticipations;
       })
     );
 
-    console.log("All creators:", creators);
+    // Flatten participations array
+    const allParticipations = participations.flat();
+    console.log("All participations found:", allParticipations);
 
-    // Create a map of creator IDs to their info
-    const creatorMap = new Map(
-      creators
-        .filter((creator): creator is NonNullable<typeof creator> => creator !== null)
-        .map(creator => [creator.userId, creator])
+    if (allParticipations.length === 0) {
+      console.log("No participations found");
+      return [];
+    }
+
+    // Get unique event IDs
+    const eventIds = [...new Set(allParticipations.map(p => p.eventId))];
+    console.log("Unique event IDs:", eventIds);
+
+    // Get all events
+    console.log("Fetching full event details...");
+    const events = await Promise.all(
+      eventIds.map(async (eventId) => {
+        console.log("Fetching event:", eventId);
+        const event = await ctx.db.get(eventId);
+        if (!event) {
+          console.log("Event not found:", eventId);
+          return null;
+        }
+        
+        // Get creator info
+        console.log("Fetching creator info for event:", event.userId);
+        const creator = await ctx.db
+          .query("users")
+          .withIndex("by_userId", (q) => q.eq("userId", event.userId))
+          .first();
+        console.log("Creator info:", creator);
+
+        // Get all participants for this event
+        console.log("Fetching participants for event:", eventId);
+        const eventParticipants = await ctx.db
+          .query("eventParticipants")
+          .withIndex("by_event", (q) => q.eq("eventId", eventId))
+          .collect();
+        console.log("Event participants:", eventParticipants);
+
+        // Find this user's participation status
+        const userParticipation = eventParticipants.find(p => 
+          userAsContact.some(contact => contact._id === p.participantId)
+        );
+        console.log("User participation status:", userParticipation);
+
+        return {
+          ...event,
+          creator,
+          participantStatus: userParticipation?.status || "pending",
+          participantId: userParticipation?.participantId,
+          participants: eventParticipants
+        };
+      })
     );
 
-    console.log("Creator map:", Object.fromEntries(creatorMap));
+    // Filter out null events and events where user is creator
+    const filteredEvents = events
+      .filter((event): event is NonNullable<typeof event> => 
+        event !== null && event.userId !== args.userId
+      );
 
-    // Now filter to only include events where the user is a participant
-    const filteredEvents = invitedEvents.filter(event => {
-      // For each event, check if any of its participants is a contact that represents the current user
-      return event.participantIds.some(async participantId => {
-        const contact = await ctx.db
-          .query("contacts")
-          .filter((q) => 
-            q.and(
-              q.eq(q.field("_id"), participantId),
-              q.eq(q.field("userId"), args.userId)
-            )
-          )
-          .first();
-        return !!contact;
-      });
-    });
+    console.log("Final filtered events:", filteredEvents);
+    console.log("========= End Getting Invited Events =========");
+    
+    return filteredEvents;
+  },
+});
 
-    // Add creator info to each event
-    const eventsWithCreators = filteredEvents.map(event => {
-      const creator = creatorMap.get(event.userId);
-      console.log(`Event ${event._id} creator:`, creator);
-      return {
-        ...event,
-        creator
-      };
-    });
+// Get participant statuses for an event
+export const getEventParticipantStatuses = query({
+  args: {
+    eventId: v.id("events"),
+  },
+  handler: async (ctx, args) => {
+    const event = await ctx.db.get(args.eventId);
+    if (!event) throw new Error("Event not found");
 
-    console.log("Final filtered events with creators:", eventsWithCreators);
-    return eventsWithCreators;
+    // Get all participants for this event
+    const participants = await ctx.db
+      .query("eventParticipants")
+      .withIndex("by_event", (q) => q.eq("eventId", args.eventId))
+      .collect();
+
+    return participants;
   },
 });

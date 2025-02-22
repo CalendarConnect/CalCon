@@ -294,3 +294,89 @@ Store tokens securely in Clerk's private metadata
 Validate all participant access permissions
 Implement proper CORS policies
 Follow least privilege principle for API scopes
+
+## ⚠️ Important Implementation Notes
+
+### Clerk Integration (ALREADY CONFIGURED ✅)
+- Google OAuth authentication is already set up
+- Calendar API scopes are already configured
+- Redirect URIs are already set
+- Token management is already handled by Clerk
+
+### Implementation Scope
+Only implement the calendar functionality using the existing Clerk setup:
+1. Use existing Clerk token access:
+   ```typescript
+   const { getToken } = useAuth();
+   const token = await getToken({ template: "google_calendar" });
+   ```
+2. Add calendar queries and mutations to Convex
+3. Update the event creation UI
+
+### Common Mistakes to Avoid
+❌ DO NOT:
+- Modify any Clerk configuration
+- Create new OAuth flows
+- Add new authentication logic
+- Change existing auth setup
+
+## 📁 Required Implementation Files
+
+### Only Two Files Need Changes:
+1. **convex/calendar.ts** - Add calendar queries and mutations
+```typescript
+// Add these functions to existing calendar.ts
+export const getAvailableTimeSlots = query({
+  args: {
+    participantIds: v.array(v.string()),
+    startDate: v.string(),
+    endDate: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Implementation using existing Clerk token
+  }
+});
+
+export const scheduleEvent = mutation({
+  args: {
+    eventDetails: v.object({
+      title: v.string(),
+      description: v.string(),
+      startTime: v.string(),
+      endTime: v.string(),
+      participantIds: v.array(v.string()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    // Implementation using existing Clerk token
+  }
+});
+```
+
+2. **app/(pages)/dashboard/events/create/page.tsx** - Update existing event creation
+```typescript
+// Add to existing imports
+import { getAvailableTimeSlots, scheduleEvent } from '@/convex/calendar';
+
+// Add to existing event creation form
+const timeSlots = useQuery(getAvailableTimeSlots, {
+  participantIds,
+  startDate,
+  endDate,
+});
+```
+
+### ❌ DO NOT CREATE OR MODIFY:
+- Any Clerk configuration
+- Any auth pages
+- Any OAuth handlers
+- Any middleware
+- Any token management
+- Any Google Calendar service files
+
+### Why This Approach?
+- Uses existing Clerk setup (already configured)
+- Maintains current project structure
+- Follows established patterns
+- Minimizes changes needed
+- Leverages existing authentication

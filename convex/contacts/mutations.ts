@@ -31,14 +31,19 @@ export const createContact = mutation({
       throw new Error("Free tier limit reached: Maximum 3 contacts. Please upgrade to add more contacts.");
     }
 
-    // Check if contact with this email already exists
+    // Check if contact with this email already exists for this user
     const existingContact = await ctx.db
       .query("contacts")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("email"), args.email),
+          q.eq(q.field("userId"), args.userId)
+        )
+      )
       .first();
 
     if (existingContact) {
-      throw new Error("Contact with this email already exists");
+      throw new Error("You already have a contact with this email");
     }
 
     const now = new Date().toISOString();
@@ -77,16 +82,26 @@ export const updateContact = mutation({
     const { id, ...updates } = args;
     const updatedFields: Record<string, any> = { ...updates };
     
-    // If email is being updated, check for duplicates
+    // If email is being updated, check for duplicates within user's contacts
     if (updates.email !== undefined) {
       const email = updates.email as string;
+      const contact = await ctx.db.get(id);
+      if (!contact) {
+        throw new Error("Contact not found");
+      }
+
       const existingContact = await ctx.db
         .query("contacts")
-        .withIndex("by_email", (q) => q.eq("email", email))
+        .filter((q) => 
+          q.and(
+            q.eq(q.field("email"), email),
+            q.eq(q.field("userId"), contact.userId)
+          )
+        )
         .first();
 
       if (existingContact && existingContact._id !== id) {
-        throw new Error("Contact with this email already exists");
+        throw new Error("You already have a contact with this email");
       }
     }
 

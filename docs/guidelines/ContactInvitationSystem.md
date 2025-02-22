@@ -128,6 +128,39 @@ Located in `app/(pages)/dashboard/contacts/page.tsx`:
 4. Provide clear user feedback
 5. Respect subscription limits
 
+## Contact Uniqueness Rules
+
+1. **Per-User Email Uniqueness**
+   - Emails are unique PER USER, not globally
+   - User A can have a contact with email X
+   - User B can also have a contact with email X
+   - Same user cannot have duplicate contact emails
+
+2. **Validation Implementation**
+   ```typescript
+   // Check if contact exists for this specific user
+   const existingContact = await ctx.db
+     .query("contacts")
+     .filter((q) => 
+       q.and(
+         q.eq(q.field("email"), email),
+         q.eq(q.field("userId"), userId)
+       )
+     )
+     .first();
+   ```
+
+3. **Error Handling**
+   - Clear error message: "You already have a contact with this email"
+   - Validates on both creation and updates
+   - Checks against current user's contacts only
+
+### Important Notes
+- The same person can be a contact for multiple users
+- Each user maintains their own independent contact list
+- Contact uniqueness is enforced at the user level only
+- This allows for proper network building where multiple users can connect with the same person
+
 ## Future Improvements
 1. Contact search functionality
 2. Bulk invitation features
