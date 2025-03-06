@@ -60,23 +60,53 @@ export const getEvents = query({
 });
 
 // Get a specific event by ID
-export const getEventById = query({
+export const getEvent = query({
   args: {
-    eventId: v.id("events"),
+    id: v.id("events"),
   },
   handler: async (ctx, args) => {
-    const event = await ctx.db.get(args.eventId);
-    if (!event) return null;
+    console.log("========= Getting Event Details =========");
+    console.log("Event ID:", args.id);
 
-    // Get all participants for this event
+    const event = await ctx.db.get(args.id);
+    if (!event) {
+      console.log("Event not found");
+      return null;
+    }
+
+    // Get creator info
+    console.log("Fetching creator info for event:", event.userId);
+    const creator = await ctx.db
+      .query("users")
+      .withIndex("by_userId", (q) => q.eq("userId", event.userId))
+      .first();
+    console.log("Creator info:", creator);
+
+    // Get all participants for this event with their contact details
+    console.log("Fetching participants for event:", args.id);
     const participants = await ctx.db
       .query("eventParticipants")
-      .withIndex("by_event", (q) => q.eq("eventId", args.eventId))
+      .withIndex("by_event", (q) => q.eq("eventId", args.id))
       .collect();
+
+    // Get contact details for each participant
+    const participantsWithDetails = await Promise.all(
+      participants.map(async (participant) => {
+        const contact = await ctx.db.get(participant.participantId);
+        return {
+          ...participant,
+          contact
+        };
+      })
+    );
+
+    console.log("Participants with details:", participantsWithDetails);
+    console.log("========= End Getting Event Details =========");
 
     return {
       ...event,
-      participants
+      creator,
+      participants: participantsWithDetails
     };
   },
 });

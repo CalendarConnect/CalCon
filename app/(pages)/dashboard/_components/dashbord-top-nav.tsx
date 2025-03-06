@@ -98,7 +98,7 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
           )}
           <Button
             onClick={() => setIsCreateEventOpen(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+            className="flex items-center gap-2 bg-[#0100f4] hover:bg-[#0100f4]/90 text-white"
           >
             <CalendarPlus className="h-4 w-4" />
             Create Event

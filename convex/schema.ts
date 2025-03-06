@@ -105,15 +105,18 @@ export default defineSchema({
         location: v.string(),
         duration: v.string(), // Duration in minutes
         status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("cancelled")),
+        selectedDateTime: v.optional(v.string()),
         createdAt: v.string(),
         updatedAt: v.string(),
+        timezone: v.string(), // Creator's timezone
     })
         .index("by_status", ["userId", "status"]),
     eventParticipants: defineTable({
         eventId: v.id("events"),
         participantId: v.id("contacts"),
         status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("declined")),
-        updatedAt: v.string()
+        updatedAt: v.string(),
+        timezone: v.optional(v.string()), // Participant's timezone when accepting
     })
         .index("by_participant", ["participantId"])
         .index("by_event", ["eventId"]),

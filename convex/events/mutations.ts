@@ -11,6 +11,7 @@ export const createEvent = mutation({
     location: v.string(),
     duration: v.string(),
     participantIds: v.array(v.id("contacts")),
+    timezone: v.string(),
   },
   handler: async (ctx, args) => {
     console.log("Creating event with args:", args);
@@ -44,6 +45,7 @@ export const createEvent = mutation({
       status: "pending" as const,
       createdAt: now,
       updatedAt: now,
+      timezone: args.timezone,
     };
 
     console.log("Creating event with data:", eventData);
@@ -87,6 +89,7 @@ export const updateParticipantStatus = mutation({
     eventId: v.id("events"),
     participantId: v.id("contacts"),
     status: v.union(v.literal("accepted"), v.literal("declined")),
+    timezone: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = new Date().toISOString();
@@ -102,10 +105,17 @@ export const updateParticipantStatus = mutation({
       throw new Error("Participant not found");
     }
 
-    await ctx.db.patch(participant._id, {
+    const updateData: any = {
       status: args.status,
-      updatedAt: now
-    });
+      updatedAt: now,
+    };
+
+    // Only store timezone if the participant accepts and provides it
+    if (args.status === "accepted" && args.timezone) {
+      updateData.timezone = args.timezone;
+    }
+
+    await ctx.db.patch(participant._id, updateData);
     await ctx.db.patch(args.eventId, { updatedAt: now });
 
     return participant._id;
@@ -239,4 +249,22 @@ export const removeParticipant = mutation({
     await ctx.db.delete(participant._id);
     return participant._id;
   },
+});
+
+export const updateEventDateTime = mutation({
+  args: {
+    eventId: v.id("events"),
+    selectedDateTime: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { eventId, selectedDateTime } = args;
+
+    // Update the event with the selected date/time
+    const updatedEvent = await ctx.db.patch(eventId, {
+      selectedDateTime,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return updatedEvent;
+  }
 });

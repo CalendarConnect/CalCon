@@ -18,34 +18,20 @@ export async function getGoogleCalendarToken() {
     }
 
     try {
-      // In a production environment, this would retrieve the actual OAuth token from Clerk
-      // const user = await clerkClient.users.getUser(userId);
-      // const tokens = await clerkClient.users.getUserOauthAccessToken(userId, 'oauth_google');
-      // if (!tokens || tokens.length === 0) {
-      //   return {
-      //     success: false,
-      //     error: 'No Google account connected'
-      //   };
-      // }
-      // 
-      // const googleToken = tokens[0];
-      // return {
-      //   success: true,
-      //   token: googleToken.token,
-      //   scopes: googleToken.scopes || [],
-      // };
+      const user = await clerkClient.users.getUser(userId);
+      const tokens = await clerkClient.users.getUserOauthAccessToken(userId, 'oauth_google');
+      if (!tokens || tokens.length === 0) {
+        return {
+          success: false,
+          error: 'No Google account connected'
+        };
+      }
       
-      // For demonstration purposes, return a mock token
-      const requiredScopes = [
-        'https://www.googleapis.com/auth/calendar.readonly',
-        'https://www.googleapis.com/auth/calendar.events.readonly',
-        'https://www.googleapis.com/auth/calendar.freebusy'
-      ];
-      
+      const googleToken = tokens[0];
       return {
         success: true,
-        token: "MOCK_VALID_TOKEN",
-        scopes: requiredScopes
+        token: googleToken.token,
+        scopes: googleToken.scopes || [],
       };
     } catch (error) {
       console.error('Error fetching Google token:', error);

@@ -51,6 +51,7 @@ const formSchema = z.object({
     required_error: "Duration is required",
   }),
   participantIds: z.array(z.custom<Id<"contacts">>()),
+  timezone: z.string(),
 });
 
 interface CreateEventDialogProps {
@@ -65,6 +66,7 @@ export const CreateEventDialog = ({
   const { user } = useUser();
   const createEvent = useMutation(api.events.mutations.createEvent);
   const [isLoading, setIsLoading] = useState(false);
+  const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   // Get user's contacts for participant selection
   const contacts = useQuery(api.contacts.queries.getContacts, {
@@ -82,6 +84,7 @@ export const CreateEventDialog = ({
       location: "",
       duration: "60",
       participantIds: [],
+      timezone: userTimezone,
     },
   });
 
@@ -113,6 +116,7 @@ export const CreateEventDialog = ({
         location: values.location,
         duration: values.duration,
         participantIds: values.participantIds,
+        timezone: values.timezone,
       });
       toast.success("Event created successfully");
       form.reset();
@@ -134,6 +138,9 @@ export const CreateEventDialog = ({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New Event</DialogTitle>
+          <div className="text-sm text-muted-foreground mt-1">
+            Your timezone: {userTimezone}
+          </div>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
