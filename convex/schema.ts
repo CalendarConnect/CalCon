@@ -104,8 +104,11 @@ export default defineSchema({
         description: v.string(),
         location: v.string(),
         duration: v.string(), // Duration in minutes
-        status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("cancelled")),
+        status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("cancelled"), v.literal("archived")),
         selectedDateTime: v.optional(v.string()),
+        calendarEventLink: v.optional(v.string()),
+        meetLink: v.optional(v.string()),
+        googleCalendarEventId: v.optional(v.string()), // ID from Google Calendar API
         createdAt: v.string(),
         updatedAt: v.string(),
         timezone: v.string(), // Creator's timezone
@@ -120,4 +123,9 @@ export default defineSchema({
     })
         .index("by_participant", ["participantId"])
         .index("by_event", ["eventId"]),
+    waitlist: defineTable({
+        email: v.string(),
+        createdAt: v.string(),
+    })
+        .index("by_email", ["email"]),
 })

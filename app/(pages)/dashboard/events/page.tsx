@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Share, Trash2, X, MapPin, Clock, AlertCircle, Calendar } from "lucide-react";
+import { Share, Trash2, X, MapPin, Clock, AlertCircle, Calendar, Users, Video, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { Id } from "@/convex/_generated/dataModel";
 import {
@@ -30,6 +30,12 @@ import { useEffect } from "react";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
 import { findCommonAvailability } from "@/server/googleCalendar";
+import { TimeSlotDialog } from "./_components/time-slot-dialog";
+import { createCalendarEvent, deleteCalendarEvent } from "@/server/googleCalendar";
+import { ConfirmMeetingDialog } from "./_components/confirm-meeting-dialog";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { DeleteEventDialog } from "./_components/delete-event-dialog";
+import { motion } from "framer-motion";
 
 // Define types using Convex generated types
 type Event = {
@@ -38,11 +44,17 @@ type Event = {
   createdAt: string;
   userId: string;
   description: string;
-  status: "pending" | "confirmed" | "cancelled";
+  status: "pending" | "confirmed" | "cancelled" | "archived";
   updatedAt: string;
   title: string;
   location: string;
   duration: string;
+  timezone: string;
+  calendarEventLink?: string;
+  meetLink?: string;
+  selectedDateTime?: string;
+  participantStatus?: "pending" | "accepted" | "declined";
+  participantId?: Id<"contacts">;
   participants?: {
     _id: Id<"eventParticipants">;
     eventId: Id<"events">;
@@ -73,9 +85,7 @@ type Event = {
     userId: string;
     tokenIdentifier: string;
   } | null;
-  participantStatus?: "pending" | "accepted" | "declined";
-  participantId?: Id<"contacts">;
-  selectedDateTime?: string;
+  googleCalendarEventId?: string;
 };
 type Contact = Doc<"contacts">;
 
@@ -88,6 +98,7 @@ const EventCard = ({
   onAccept, 
   onDecline, 
   onRemove,
+  onArchive,
   onFindAvailability,
   onUpdateDateTime,
   contacts,
@@ -100,6 +111,7 @@ const EventCard = ({
   onAccept: (event: Event) => Promise<void>;
   onDecline: (event: Event) => Promise<void>;
   onRemove: (event: Event) => Promise<void>;
+  onArchive: (event: Event) => Promise<void>;
   onFindAvailability: (event: Event) => Promise<Array<{ start: string; end: string }>>;
   onUpdateDateTime: (eventId: Id<"events">, selectedTime: string) => Promise<void>;
   contacts: Contact[];
@@ -107,23 +119,34 @@ const EventCard = ({
 }) => {
   const [availableSlots, setAvailableSlots] = useState<Array<{ start: string; end: string }>>([]);
   const [isTimeSlotDialogOpen, setIsTimeSlotDialogOpen] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const updateEventWithCalendarLinks = useMutation(api.events.mutations.updateEventWithCalendarLinks);
+  const { user } = useUser();
 
   const hasAccepted = event.participants?.every(
     p => p.status === "accepted"
   ) ?? false;
 
   const handleFindClick = async () => {
+    setIsSearching(true);
+    setIsTimeSlotDialogOpen(true);
     const slots = await onFindAvailability(event);
     if (slots) {
       setAvailableSlots(slots);
-      setIsTimeSlotDialogOpen(true);
+      setTimeout(() => {
+        setIsSearching(false);
+      }, 9500); // Increased to 9.5s to ensure animation completes
+    } else {
+      setIsSearching(false);
     }
   };
 
   const handleSelectTimeSlot = async (selectedTime: string) => {
     try {
       await onUpdateDateTime(event._id, selectedTime);
-      toast.success("Meeting time has been set!");
+      toast.success("Schedule wisely and thrive 🖖");
       setIsTimeSlotDialogOpen(false);
     } catch (error) {
       console.error("Error updating event time:", error);
@@ -131,257 +154,364 @@ const EventCard = ({
     }
   };
 
+  const handleConfirmEvent = async () => {
+    if (!event.selectedDateTime || !user) return;
+
+    setIsConfirming(true);
+    try {
+      // Create calendar event
+      const result = await createCalendarEvent({
+        eventId: event._id,
+        title: event.title,
+        description: event.description,
+        location: event.location,
+        selectedDateTime: event.selectedDateTime,
+        duration: event.duration,
+        creator: { clerkUserId: user.id },
+        participants: event.participants?.map(p => ({
+          clerkUserId: p.contact?.contactUserId || ''
+        })) || [],
+        timezone: event.timezone
+      });
+
+      if (!result.eventId || !result.eventLink) {
+        throw new Error("Missing required calendar event data");
+      }
+
+      // Update event with calendar links
+      await updateEventWithCalendarLinks({
+        eventId: event._id,
+        calendarEventLink: result.eventLink,
+        meetLink: result.meetLink || undefined,
+        googleCalendarEventId: result.eventId
+      });
+
+      toast.success("Event has been confirmed and added to calendars!");
+    } catch (error) {
+      console.error("Error confirming event:", error);
+      toast.error("Failed to confirm event");
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  // Get the status badge color based on event status
+  const getStatusBadgeStyle = (status: string) => {
+    switch(status) {
+      case "accepted":
+        return "bg-gradient-to-r from-green-50 to-emerald-50 text-emerald-600 border border-emerald-200/50";
+      case "declined":
+        return "bg-gradient-to-r from-red-50 to-rose-50 text-rose-600 border border-rose-200/50";
+      case "pending":
+        return "bg-gradient-to-r from-amber-50 to-orange-50 text-orange-600 border border-orange-200/50";
+      case "confirmed":
+        return "bg-gradient-to-r from-blue-50 to-sky-50 text-sky-600 border border-sky-200/50";
+      default:
+        return "bg-gradient-to-r from-gray-50 to-gray-100 text-gray-600 border border-gray-200/50";
+    }
+  };
+
+  // Format datetime to display
+  const formatDateTime = (dateTime: string) => {
+    try {
+      const startDate = new Date(dateTime);
+      const endDate = new Date(startDate.getTime() + parseInt(event.duration) * 60 * 1000);
+      
+      const dateStr = format(startDate, 'MMMM d, yyyy');
+      const timeStr = `${format(startDate, 'h:mm a')} - ${format(endDate, 'h:mm a')}`;
+      
+      return { dateStr, timeStr };
+    } catch (e) {
+      return { dateStr: "Invalid date", timeStr: "Invalid time" };
+    }
+  };
+
   return (
-    <Card key={event._id}>
-      <CardHeader>
-        <div className="flex justify-between items-start">
-          <div className="space-y-3">
-            <CardTitle>{event.title}</CardTitle>
-            <CardDescription>{event.description}</CardDescription>
-          </div>
-          {!isInvited && (
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-gray-500">
-                  <X className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Delete Event</DialogTitle>
-                  <DialogDescription>
-                    Are you sure you want to delete this event? This action cannot be undone.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button
-                    variant="destructive"
-                    onClick={() => onDelete(event._id)}
-                  >
-                    Delete
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex items-center">
-            <MapPin className="h-4 w-4 mr-2 text-blue-600 flex-shrink-0" />
-            <p className="text-sm">
-              <strong>Location:</strong> {event.location}
-            </p>
-          </div>
-          <div className="flex items-center">
-            <Clock className="h-4 w-4 mr-2 text-blue-600 flex-shrink-0" />
-            <p className="text-sm">
-              <strong>Duration:</strong> {event.duration} minutes
-            </p>
-          </div>
-          {isInvited ? (
-            <div className="flex items-center">
-              <AlertCircle className="h-4 w-4 mr-2 text-blue-600 flex-shrink-0" />
-              <p className="text-sm">
-                <strong>Status:</strong> {event.participantStatus || "pending"}
-              </p>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      whileHover={{ y: -4 }}
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+      className="relative w-full"
+    >
+      <div
+        className={`relative h-auto w-full overflow-hidden bg-white rounded-2xl
+          border border-gray-100 shadow-[0_5px_25px_-12px_rgba(0,0,0,0.08)] 
+          transition-all duration-300 ease-out ${isHovered ? 'shadow-[0_20px_40px_-12px_rgba(0,0,0,0.12)]' : ''}`}
+      >
+        {/* Status indicator bar */}
+        <div className={`absolute top-0 left-0 right-0 h-1 ${
+          event.status === "confirmed" ? "bg-gradient-to-r from-sky-500 to-blue-500" :
+          event.status === "pending" ? "bg-gradient-to-r from-orange-500 to-orange-600" :
+          event.status === "cancelled" ? "bg-gradient-to-r from-rose-500 to-red-500" :
+          "bg-gradient-to-r from-gray-300 to-gray-400"
+        }`} />
+
+        <div className="p-5">
+          <div className="flex justify-between items-start">
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center gap-2.5">
+                {/* Status badge */}
+                <div className={`px-2 py-0.5 text-[10px] font-medium uppercase rounded-full ${getStatusBadgeStyle(event.status)}`}>
+                  {event.status}
+                </div>
+                <h3 className="text-base font-semibold text-gray-900 line-clamp-1">{event.title}</h3>
+              </div>
+              <p className="text-xs text-gray-500 min-h-[32px] line-clamp-2">{event.description}</p>
             </div>
-          ) : (
-            <div className="flex items-center">
-              <AlertCircle className="h-4 w-4 mr-2 text-blue-600 flex-shrink-0" />
-              <p className="text-sm">
-                <strong>Status:</strong> {event.status === "pending" 
-                  ? "Waiting for participants to be connected with you"
-                  : event.status}
-              </p>
-            </div>
-          )}
-          {event.selectedDateTime && (
-            <div className="flex items-center mt-4 p-3 bg-green-50 rounded-lg">
-              <Calendar className="h-4 w-4 mr-2 text-green-600" />
-              <p className="text-sm text-green-700">
-                <strong>Date and time everyone is available:</strong> {format(new Date(event.selectedDateTime), 'PPpp')}
-              </p>
-            </div>
-          )}
-          {event.participants && event.participants.length > 0 && (
-            <div>
-              {isInvited && (
-                <p className="text-sm mb-2">
-                  <strong>Created by:</strong>{" "}
-                  {event.creator?.name || event.creator?.email || "Unknown"}
-                </p>
-              )}
-              {!isInvited && (
-                <div className="mt-4">
-                  <p className="text-sm font-medium mb-2">Participants:</p>
-                  <div className="space-y-2 border rounded-lg p-3">
-                    {event.participants.map((participant) => (
-                      <div key={participant._id} className="flex items-center justify-between">
-                        <span className="text-sm">
-                          {participant.contact?.fullName || participant.contact?.email || "Unknown"}
-                        </span>
-                        <Badge
-                          className={getStatusColor(participant.status)}
-                        >
-                          {participant.status}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                  {hasAccepted && !isInvited && (
-                    <div className="mt-4">
-                      <Button 
-                        className="w-full"
-                        variant="default"
-                        onClick={handleFindClick}
+            
+            {!isInvited && (
+              <DeleteEventDialog
+                eventId={event._id}
+                isConfirmed={event.status === "confirmed"}
+                hasCalendarEventId={!!event.calendarEventLink}
+                googleCalendarEventId={event.googleCalendarEventId}
+                acceptedParticipants={event.participants?.filter(p => p.status === "accepted")}
+                creatorClerkUserId={user?.id || ""}
+                onDelete={onDelete}
+              />
+            )}
+          </div>
+
+          <div className="space-y-4 mt-4">
+            {/* Participants Section */}
+            {event.participants && event.participants.length > 0 && (
+              <div className="flex items-center justify-between py-2 px-3 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100">
+                <div className="flex -space-x-2">
+                  {event.participants.slice(0, 4).map((participant, index) => (
+                    <motion.div
+                      key={participant._id}
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.2, delay: index * 0.1 }}
+                    >
+                      <Avatar
+                        className="w-7 h-7 border-2 border-white shadow-sm"
+                        style={{ zIndex: 5 - index }}
                       >
-                        <Calendar className="w-4 h-4 mr-2" />
-                        Find Available Timeslot
-                      </Button>
-                    </div>
+                        {participant.status === 'accepted' && participant.contact?.contactUserId && (
+                          <AvatarImage
+                            src={`https://img.clerk.com/v1/user/${participant.contact.contactUserId}/profile-image?width=48&height=48&quality=85&timestamp=${Date.now()}`}
+                            alt={participant.contact?.fullName || participant.contact?.email || "Participant"}
+                          />
+                        )}
+                        <AvatarFallback className="bg-gradient-to-r from-orange-100 to-orange-50 text-orange-600 text-xs font-semibold">
+                          {(participant.contact?.fullName || participant.contact?.email || "?")[0].toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </motion.div>
+                  ))}
+                  {event.participants.length > 4 && (
+                    <Avatar className="w-7 h-7 border-2 border-white shadow-sm">
+                      <AvatarFallback className="bg-gradient-to-r from-gray-100 to-gray-50 text-gray-600 text-xs font-semibold">
+                        +{event.participants.length - 4}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                </div>
+                <div className="flex gap-1.5">
+                  {['accepted', 'declined', 'pending'].map(status => {
+                    const count = event.participants.filter(p => p.status === status).length;
+                    if (count === 0) return null;
+                    
+                    return (
+                      <div 
+                        key={status}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusBadgeStyle(status)}`}
+                      >
+                        <span>{count}</span>
+                        <span>{status}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Meeting Info Cards */}
+            <div className="flex items-stretch gap-2">
+              <div className="flex-1 p-3 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100 flex items-center gap-2.5">
+                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
+                  <Clock className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase font-medium">Duration</p>
+                  <p className="text-sm text-gray-800 font-medium">{event.duration} min</p>
+                </div>
+              </div>
+              <div className="flex-1 p-3 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100 flex items-center gap-2.5">
+                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
+                  <Video className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase font-medium">Platform</p>
+                  <p className="text-sm text-gray-800 font-medium">{event.location}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Selected DateTime */}
+            {event.selectedDateTime && (
+              <div className="p-3 bg-gradient-to-br from-blue-50/30 to-sky-50/30 rounded-xl border border-blue-100/50 flex items-center gap-3">
+                <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-blue-100/70 flex items-center justify-center text-blue-600">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-blue-500 uppercase font-medium">Scheduled</p>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-0 sm:gap-1.5">
+                    <p className="text-sm text-gray-800 font-medium">
+                      {formatDateTime(event.selectedDateTime).dateStr}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      {formatDateTime(event.selectedDateTime).timeStr}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              {/* Find Available Timeslot Button */}
+              {hasAccepted && !isInvited && !event.calendarEventLink && event.status !== "confirmed" && (
+                <Button 
+                  className="w-full h-10 px-4 text-sm font-medium bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 rounded-xl 
+                    transition-all duration-200 flex items-center justify-center gap-1.5
+                    hover:border-gray-300 hover:shadow-sm"
+                  variant="default"
+                  onClick={handleFindClick}
+                >
+                  <Calendar className="w-4 h-4" />
+                  {isSearching ? "Searching Availability..." : event.selectedDateTime ? "Change Timeslot" : "Find Available Timeslot"}
+                </Button>
+              )}
+
+              {event.selectedDateTime && !event.calendarEventLink && !isInvited && hasAccepted && (
+                <ConfirmMeetingDialog
+                  isConfirming={isConfirming}
+                  onConfirm={handleConfirmEvent}
+                />
+              )}
+
+              {event.calendarEventLink && (
+                <div className="space-y-2">
+                  <a 
+                    href={event.calendarEventLink} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="w-full h-10 px-4 text-sm font-medium bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 rounded-xl 
+                      transition-all duration-200 flex items-center justify-center gap-2
+                      hover:border-gray-300 hover:shadow-sm"
+                  >
+                    <Calendar className="w-4 h-4 text-orange-500" />
+                    View in Calendar
+                  </a>
+                  {event.meetLink && (
+                    <a 
+                      href={event.meetLink} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="w-full h-10 px-4 text-sm font-medium bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl 
+                        transition-all duration-200 flex items-center justify-center gap-2
+                        shadow-lg shadow-orange-500/20 hover:shadow-orange-600/30"
+                    >
+                      <Video className="w-4 h-4" />
+                      Join Meeting
+                    </a>
                   )}
                 </div>
               )}
-              {isInvited && (
-                <div>
-                  <p className="text-sm font-medium mb-1">Participants:</p>
-                  <div className="space-y-1">
-                    {event.participants.map((participant) => {
-                      console.log("Processing participant:", participant);
-                      const contact = contacts.find((c) => c._id === participant.participantId);
-                      if (!contact) {
-                        console.log("Contact not found for participant:", participant.participantId);
-                        return null;
-                      }
-                      
-                      return (
-                        <div key={participant.participantId} className="flex items-center justify-between">
-                          <span className="text-sm">
-                            {contact.fullName || contact.email || "Unknown"}
-                            {contact.userId === event.userId && " (Creator)"}
-                          </span>
-                          <Badge
-                            variant="secondary"
-                            className={`ml-2 ${getStatusColor(participant.status)}`}
-                          >
-                            {participant.status}
-                          </Badge>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Time Slot Selection Dialog */}
-        <Dialog open={isTimeSlotDialogOpen} onOpenChange={setIsTimeSlotDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Select a Time Slot</DialogTitle>
-              <DialogDescription>
-                Choose from the available time slots below:
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              {availableSlots.map((slot, index) => (
-                <div key={index} className="space-y-2">
+          {/* Action Buttons - Invitation Responses */}
+          {isInvited && (
+            <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end gap-2">
+              {event.participantStatus === "pending" && (
+                <>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-9 px-3 text-sm font-medium bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl shadow-lg shadow-orange-500/20 hover:shadow-orange-600/30 transition-all"
+                    onClick={() => onAccept(event)}
+                  >
+                    Accept
+                  </Button>
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                    onClick={() => handleSelectTimeSlot(slot.start)}
+                    size="sm"
+                    className="h-9 px-3 text-sm font-medium text-gray-700 border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
+                    onClick={() => onDecline(event)}
                   >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    <span>
-                      {format(new Date(slot.start), 'PPpp')} - {format(new Date(slot.end), 'p')}
-                    </span>
+                    Decline
                   </Button>
-                  {slot.participantAvailability && (
-                    <div className="pl-6 space-y-1">
-                      {Object.entries(slot.participantAvailability).map(([participantId, status]) => {
-                        const participant = event.participants?.find(p => 
-                          p.contact?.contactUserId && p.contact.contactUserId === participantId
-                        );
-                        const participantName = participant?.contact?.fullName || participant?.contact?.email || "Unknown";
-                        return (
-                          <div key={participantId} className="flex items-center text-sm">
-                            <div className={`w-2 h-2 rounded-full mr-2 ${status.available ? 'bg-green-500' : 'bg-red-500'}`} />
-                            <span>{participantName}: {status.available ? 'Available' : 'Busy'}</span>
-                            {!status.available && status.conflicts && status.conflicts.length > 0 && (
-                              <span className="ml-2 text-xs text-gray-500">
-                                (Has meeting: {format(new Date(status.conflicts[0].start), 'p')} - {format(new Date(status.conflicts[0].end), 'p')})
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
+                </>
+              )}
+              {isInvited && event.participantStatus === "accepted" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-3 text-sm font-medium text-gray-700 border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
+                  onClick={() => onDecline(event)}
+                >
+                  Decline
+                </Button>
+              )}
+              {isInvited && event.participantStatus === "declined" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-3 text-sm font-medium text-gray-700 border-gray-200 hover:bg-gray-50 rounded-xl transition-colors flex items-center gap-1.5"
+                  onClick={() => onRemove(event)}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Remove
+                </Button>
+              )}
             </div>
-            <DialogFooter>
-              <Button variant="secondary" onClick={() => setIsTimeSlotDialogOpen(false)}>
-                Cancel
+          )}
+
+          {/* Other Action Buttons */}
+          {!isInvited && !event.calendarEventLink && event.status !== "confirmed" && !hasAccepted && (
+            <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 px-3 text-sm font-medium text-gray-700 border-gray-200 hover:bg-gray-50 rounded-xl transition-colors flex items-center gap-1.5"
+                onClick={() => onShare(event._id)}
+              >
+                <Share className="w-3.5 h-3.5" />
+                Share
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-      <CardFooter className="flex justify-end gap-2">
-        {isInvited && event.participantStatus === "pending" && (
-          <>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => onAccept(event)}
-            >
-              Accept
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onDecline(event)}
-            >
-              Decline
-            </Button>
-          </>
-        )}
-        {isInvited && event.participantStatus === "accepted" && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onDecline(event)}
-          >
-            Decline
-          </Button>
-        )}
-        {isInvited && event.participantStatus === "declined" && (
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => onRemove(event)}
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Remove
-          </Button>
-        )}
-        {!isInvited && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onShare(event._id)}
-          >
-            <Share className="w-4 h-4 mr-2" />
-            Share
-          </Button>
-        )}
-      </CardFooter>
-    </Card>
+            </div>
+          )}
+          {!isInvited && event.status === "confirmed" && (
+            <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 px-3 text-sm font-medium text-gray-700 border-gray-200 hover:bg-gray-50 rounded-xl transition-colors flex items-center gap-1.5"
+                onClick={() => onArchive(event)}
+              >
+                <Archive className="w-3.5 h-3.5" />
+                Archive
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Time Slot Dialog */}
+      <TimeSlotDialog
+        isOpen={isTimeSlotDialogOpen}
+        onOpenChange={setIsTimeSlotDialogOpen}
+        availableSlots={availableSlots}
+        isSearching={isSearching}
+        onSelectTimeSlot={handleSelectTimeSlot}
+      />
+    </motion.div>
   );
 };
 
@@ -422,13 +552,12 @@ export default function EventsPage() {
   );
 
   useEffect(() => {
-    console.log("========= Query States Changed =========");
     console.log("Query States:", {
       shouldQuery,
-      events: events === "skip" ? "skipped" : events !== undefined,
-      invitedEvents: invitedEvents === "skip" ? "skipped" : invitedEvents !== undefined,
-      contacts: contacts === "skip" ? "skipped" : contacts !== undefined,
-      incomingInvitations: incomingInvitations === "skip" ? "skipped" : incomingInvitations !== undefined
+      events: events === undefined ? "undefined" : Array.isArray(events) ? "array" : "skip",
+      invitedEvents: invitedEvents === undefined ? "undefined" : Array.isArray(invitedEvents) ? "array" : "skip",
+      contacts: contacts === undefined ? "undefined" : Array.isArray(contacts) ? "array" : "skip",
+      incomingInvitations: incomingInvitations === undefined ? "undefined" : Array.isArray(incomingInvitations) ? "array" : "skip"
     });
   }, [shouldQuery, events, invitedEvents, contacts, incomingInvitations]);
 
@@ -436,15 +565,20 @@ export default function EventsPage() {
   const deleteEvent = useMutation(api.events.mutations.deleteEvent);
   const updateParticipantStatus = useMutation(api.events.mutations.updateParticipantStatus);
   const updateEventDateTime = useMutation(api.events.mutations.updateEventDateTime);
+  const updateEvent = useMutation(api.events.mutations.updateEvent);
+  const updateEventStatus = useMutation(api.events.mutations.updateEventStatus);
+
+  // Filter out archived events from the main view
+  const activeEvents = events?.filter(event => event.status !== "archived") || [];
+  const activeInvitedEvents = invitedEvents?.filter(event => event.status !== "archived") || [];
 
   // Handle authentication loading state
   if (!isLoaded) {
-    console.log("Auth still loading");
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <h2 className="text-lg font-semibold mb-2">Loading authentication...</h2>
-          <p className="text-gray-500">Please wait while we verify your session.</p>
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="mb-4">
+          <h1 className="text-xl font-medium tracking-tight">Meetings</h1>
+          <p className="text-sm text-muted-foreground mt-1">Loading authentication...</p>
         </div>
       </div>
     );
@@ -452,12 +586,11 @@ export default function EventsPage() {
 
   // Handle not signed in state
   if (!isSignedIn) {
-    console.log("User not signed in");
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <h2 className="text-lg font-semibold mb-2">Please sign in</h2>
-          <p className="text-gray-500">You need to be signed in to view events.</p>
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="mb-4">
+          <h1 className="text-xl font-medium tracking-tight">Meetings</h1>
+          <p className="text-sm text-muted-foreground mt-1">Please sign in to view meetings.</p>
         </div>
       </div>
     );
@@ -473,13 +606,17 @@ export default function EventsPage() {
       incomingInvitations: incomingInvitations === undefined
     });
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <h2 className="text-lg font-semibold mb-2">Loading your events...</h2>
-          <p className="text-gray-500">Please wait while we fetch your data.</p>
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="mb-4">
+          <h1 className="text-xl font-medium tracking-tight">Meetings</h1>
+          <p className="text-sm text-muted-foreground mt-1">Loading your meetings...</p>
         </div>
       </div>
     );
+  }
+
+  if (!events) {
+    return <div>Loading...</div>;
   }
 
   const getStatusColor = (status: string): string => {
@@ -625,85 +762,175 @@ export default function EventsPage() {
     }
   };
 
-  return (
-    <div className="container mx-auto py-8">
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Your Events</h2>
-        {events && events.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
-            {events.map((event) => (
-              <EventCard
-                key={event._id}
-                event={event}
-                isInvited={false}
-                onShare={handleShare}
-                onDelete={async (eventId) => {
-                  try {
-                    await deleteEvent({ id: eventId });
-                    toast.success("Event deleted successfully");
-                  } catch (error) {
-                    toast.error("Failed to delete event");
-                  }
-                }}
-                onAccept={handleAcceptEvent}
-                onDecline={handleDeclineEvent}
-                onRemove={handleRemoveEvent}
-                onFindAvailability={handleFindAvailability}
-                onUpdateDateTime={async (eventId, selectedTime) => {
-                  await updateEventDateTime({
-                    eventId,
-                    selectedDateTime: selectedTime
-                  });
-                }}
-                contacts={contacts}
-                getStatusColor={getStatusColor}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center text-gray-500">
-            No events found. Create an event to get started!
-          </div>
-        )}
-      </div>
+  const handleArchiveEvent = async (event: Event) => {
+    try {
+      await updateEventStatus({
+        id: event._id,
+        status: "archived"
+      });
+      toast.success("Event archived successfully");
+    } catch (error) {
+      console.error("Error archiving event:", error);
+      toast.error("Failed to archive event");
+    }
+  };
 
-      <div className="mt-24">
-        <h2 className="text-xl font-semibold mb-4">Invited Events</h2>
-        {invitedEvents && invitedEvents.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
-            {invitedEvents.map((event) => (
-              <EventCard
-                key={event._id}
-                event={event}
-                isInvited={true}
-                onShare={handleShare}
-                onDelete={async (eventId) => {
-                  try {
-                    await deleteEvent({ id: eventId });
-                    toast.success("Event deleted successfully");
-                  } catch (error) {
-                    toast.error("Failed to delete event");
-                  }
-                }}
-                onAccept={handleAcceptEvent}
-                onDecline={handleDeclineEvent}
-                onRemove={handleRemoveEvent}
-                onFindAvailability={handleFindAvailability}
-                onUpdateDateTime={async (eventId, selectedTime) => {
-                  await updateEventDateTime({
-                    eventId,
-                    selectedDateTime: selectedTime
-                  });
-                }}
-                contacts={contacts}
-                getStatusColor={getStatusColor}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center text-gray-500">
-            No invited events found.
-          </div>
+  return (
+    <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Meetings</h1>
+          <p className="text-base text-gray-500">
+            Manage your meetings and invitations.
+          </p>
+        </div>
+
+        <Card className="rounded-2xl border-0 bg-white shadow-md overflow-hidden mb-8">
+          <CardHeader className="flex flex-row items-center justify-between pt-6 pb-2 px-8 border-b border-gray-100">
+            <CardTitle className="text-lg font-semibold text-gray-900">Your Meetings</CardTitle>
+          </CardHeader>
+          <CardContent className="px-8 py-6">
+            {activeEvents.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {activeEvents.map((event) => (
+                  <EventCard
+                    key={event._id}
+                    event={event}
+                    isInvited={false}
+                    onShare={handleShare}
+                    onDelete={async (eventId) => {
+                      try {
+                        // Get the event to check if it's confirmed
+                        const eventToDelete = events.find(e => e._id === eventId);
+                        if (!eventToDelete) {
+                          throw new Error("Event not found");
+                        }
+
+                        // If event is confirmed and has calendar link, delete from calendars first
+                        if (eventToDelete.status === "confirmed" && eventToDelete.googleCalendarEventId) {
+                          try {
+                            // Delete from Google Calendar using the stored event ID
+                            // Only include participants who have accepted
+                            const acceptedParticipants = eventToDelete.participants?.filter(p => p.status === "accepted") || [];
+                            await deleteCalendarEvent({
+                              eventId: eventToDelete.googleCalendarEventId,
+                              creator: { clerkUserId: user?.id || '' },
+                              participants: acceptedParticipants.map(p => ({
+                                clerkUserId: p.contact?.contactUserId || ''
+                              })).filter(p => p.clerkUserId) // Filter out any invalid clerk IDs
+                            });
+                          } catch (error) {
+                            console.error("Error deleting calendar event:", error);
+                            toast.error("Failed to delete from calendars");
+                            return;
+                          }
+                        }
+
+                        // Delete the event from our database
+                        await deleteEvent({ id: eventId });
+                        toast.success("Event deleted successfully");
+                      } catch (error) {
+                        console.error("Error deleting event:", error);
+                        toast.error("Failed to delete event");
+                      }
+                    }}
+                    onAccept={handleAcceptEvent}
+                    onDecline={handleDeclineEvent}
+                    onRemove={handleRemoveEvent}
+                    onArchive={handleArchiveEvent}
+                    onFindAvailability={handleFindAvailability}
+                    onUpdateDateTime={async (eventId, selectedTime) => {
+                      await updateEventDateTime({
+                        eventId,
+                        selectedDateTime: selectedTime
+                      });
+                    }}
+                    contacts={contacts || []}
+                    getStatusColor={getStatusColor}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="py-16 flex flex-col items-center justify-center text-center border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+                <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mb-4">
+                  <Calendar className="h-8 w-8 text-orange-500" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Meetings Yet</h3>
+                <p className="text-sm text-gray-500 max-w-md">
+                  Create your first meeting to get started. Your scheduled meetings will appear here.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {activeInvitedEvents.length > 0 && (
+          <Card className="rounded-2xl border-0 bg-white shadow-md overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between pt-6 pb-2 px-8 border-b border-gray-100">
+              <CardTitle className="text-lg font-semibold text-gray-900">Meeting Invitations</CardTitle>
+            </CardHeader>
+            <CardContent className="px-8 py-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {activeInvitedEvents.map((event) => (
+                  <EventCard
+                    key={event._id}
+                    event={event}
+                    isInvited={true}
+                    onShare={handleShare}
+                    onDelete={async (eventId) => {
+                      try {
+                        // Get the event to check if it's confirmed
+                        const eventToDelete = events.find(e => e._id === eventId);
+                        if (!eventToDelete) {
+                          throw new Error("Event not found");
+                        }
+
+                        // If event is confirmed and has calendar link, delete from calendars first
+                        if (eventToDelete.status === "confirmed" && eventToDelete.googleCalendarEventId) {
+                          try {
+                            // Delete from Google Calendar using the stored event ID
+                            // Only include participants who have accepted
+                            const acceptedParticipants = eventToDelete.participants?.filter(p => p.status === "accepted") || [];
+                            await deleteCalendarEvent({
+                              eventId: eventToDelete.googleCalendarEventId,
+                              creator: { clerkUserId: user?.id || '' },
+                              participants: acceptedParticipants.map(p => ({
+                                clerkUserId: p.contact?.contactUserId || ''
+                              })).filter(p => p.clerkUserId) // Filter out any invalid clerk IDs
+                            });
+                          } catch (error) {
+                            console.error("Error deleting calendar event:", error);
+                            toast.error("Failed to delete from calendars");
+                            return;
+                          }
+                        }
+
+                        // Delete the event from our database
+                        await deleteEvent({ id: eventId });
+                        toast.success("Event deleted successfully");
+                      } catch (error) {
+                        console.error("Error deleting event:", error);
+                        toast.error("Failed to delete event");
+                      }
+                    }}
+                    onAccept={handleAcceptEvent}
+                    onDecline={handleDeclineEvent}
+                    onRemove={handleRemoveEvent}
+                    onArchive={handleArchiveEvent}
+                    onFindAvailability={handleFindAvailability}
+                    onUpdateDateTime={async (eventId, selectedTime) => {
+                      await updateEventDateTime({
+                        eventId,
+                        selectedDateTime: selectedTime
+                      });
+                    }}
+                    contacts={contacts || []}
+                    getStatusColor={getStatusColor}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

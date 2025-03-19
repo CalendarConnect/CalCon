@@ -1,86 +1,108 @@
 "use client";
-import { ArrowRight, Github, Sparkles } from "lucide-react";
-import Link from "next/link";
-import { Button } from "../ui/button";
+import { ArrowRight, Sparkles, Clock, Mail, Play } from "lucide-react";
 import { motion } from "motion/react";
+import { Button } from "../ui/button";
+import { useState } from "react";
+import { api } from "@/convex/_generated/api";
+import { useMutation } from "convex/react";
+import { toast } from "sonner";
 
 export default function HeroSection() {
-  return (
-    <section
-      className="relative flex flex-col items-center justify-center py-20"
-      aria-label="Nextjs Starter Kit Hero"
-    >
-      {/* Background gradient */}
-      <div className="absolute inset-0 -z-10 h-full w-full bg-white dark:bg-black bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]">
-        <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-blue-400 dark:bg-blue-500 opacity-20 blur-[100px]"></div>
-      </div>
+  const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const addToWaitlist = useMutation(api.waitlist.add);
 
-      <div className="space-y-6 text-center max-w-4xl px-4">
-        {/* Pill badge */}
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+
+    setIsSubmitting(true);
+    try {
+      await addToWaitlist({ email });
+      toast.success("You're on the waitlist! We'll notify you when we launch.");
+      setEmail("");
+    } catch (error) {
+      toast.error("Something went wrong. Please try again.");
+    }
+    setIsSubmitting(false);
+  };
+
+  return (
+    <section className="relative flex flex-col items-center justify-center min-h-screen bg-white py-16">
+      <div className="max-w-6xl mx-auto px-4 w-full space-y-8">
+        {/* Header Content */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="mx-auto w-fit rounded-full border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-900/30 px-4 py-1 mb-6"
+          className="text-center space-y-4"
         >
-          <div className="flex items-center gap-2 text-sm font-medium text-blue-900 dark:text-blue-200">
-            <Sparkles className="h-4 w-4" />
-            <span>Goodbye back and forth mails, hello meeting time</span>
-          </div>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight max-w-4xl mx-auto">
+            <span className="text-[#18181b]">The</span>{" "}
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#f35f43] via-[#f35f43] to-[#f7b772]">Daily Frustration</span>
+            <br />
+            <span className="text-[#18181b]">of Professional</span>{" "}
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#f35f43] via-[#f35f43] to-[#f7b772]">Scheduling</span>
+          </h1>
+
+          {/* Launch date badge */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="mx-auto w-fit rounded-full border border-[#f35f43] bg-[#f7b772]/20 px-6 py-2"
+          >
+            <div className="flex items-center gap-2 text-base font-medium text-[#f35f43]">
+              <Sparkles className="h-5 w-5" />
+              <span>Launching April 2nd, 2025</span>
+            </div>
+          </motion.div>
         </motion.div>
 
-        {/* Main heading */}
-        <motion.h1
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 dark:from-white dark:via-blue-300 dark:to-white animate-gradient-x pb-2"
-        >
-          Stop Wasting Hours<br className="hidden sm:block" />
-          On Meeting Planning
-        </motion.h1>
-
-        {/* Subtitle */}
-        <motion.p
+        {/* Video Section */}
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto"
+          className="relative w-full max-w-4xl mx-auto aspect-video rounded-2xl overflow-hidden shadow-2xl border border-gray-200"
         >
-          Select your business contacts. Get the perfect time instantly. Your calendar remains completely private.
-        </motion.p>
+          <iframe
+            src="https://www.youtube.com/embed/H94cmY5SaAw?autoplay=0"
+            title="CalCon Introduction"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="absolute inset-0 w-full h-full"
+          />
+        </motion.div>
 
-        {/* CTA Buttons */}
+        {/* Pain Points */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="flex flex-wrap justify-center items-center gap-4 pt-4"
+          className="max-w-3xl mx-auto space-y-4"
         >
-          <Link href="/dashboard">
-            <Button
-              size="lg"
-              className="bg-blue-600 hover:bg-blue-500 text-white rounded-full px-8 h-12"
-            >
-              Get Started
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </Link>
+          <p className="text-lg text-gray-600 leading-relaxed text-center">
+            Every day, professionals waste countless hours coordinating meetings through endless email chains. Each meeting becomes a tedious dance of back-and-forth messages, trying to find that perfect time slot when everyone is available.
+          </p>
 
-          <Link
-            href="https://discord.gg/HUcHdrrDgY"
-            target="_blank"
-            aria-label="Join Discord (opens in a new tab)"
-          >
-            <Button
-              variant="outline"
-              size="lg"
-              className="rounded-full px-8 h-12 border-2"
-            >
-              Join Discord
-              <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-            </Button>
-          </Link>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="flex items-start gap-4 bg-gray-50 p-4 rounded-xl">
+              <Clock className="h-6 w-6 text-[#f35f43] mt-1 shrink-0" />
+              <div>
+                <h3 className="font-semibold text-lg text-gray-900">Time Wasted</h3>
+                <p className="text-gray-600">Every minute spent on email coordination is a minute taken away from meaningful work.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4 bg-gray-50 p-4 rounded-xl">
+              <Mail className="h-6 w-6 text-[#f35f43] mt-1 shrink-0" />
+              <div>
+                <h3 className="font-semibold text-lg text-gray-900">Email Overload</h3>
+                <p className="text-gray-600">Managing demos, sales calls, and meetings with executives shouldn't require endless email threads.</p>
+              </div>
+            </div>
+          </div>
         </motion.div>
       </div>
     </section>

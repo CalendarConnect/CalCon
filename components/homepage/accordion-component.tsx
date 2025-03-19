@@ -10,20 +10,24 @@ import { motion } from "motion/react"
 
 const faqs = [
     {
-        question: "What can my business contacts see when I connect my calendar?",
-        answer: "The CalCon algorithm analyzes the timeslots you are free, and calculates the best date and time for them to meet with you."
+        question: "When exactly is CalCon launching?",
+        answer: "CalCon is launching on April 2nd, 2024. Waitlist members will get priority access and can start using the platform immediately on launch day."
+    },
+    {
+        question: "What are the benefits of joining the waitlist?",
+        answer: "Waitlist members get exclusive access to our Founding 1000 program, which includes lifetime preferred pricing at $9/month, early access to new features, and the opportunity to shape the future of professional scheduling."
     },
     {
         question: "How does the Founding 1000 program work?",
-        answer: "Only your free/busy status - nothing more. No event details, no participant information, no meeting titles, and no locations. Your calendar privacy stays completely protected."
+        answer: "The Founding 1000 program is limited to our first 1000 members. You'll get unlimited contacts, all future features, and early access to updates at a lifetime rate of $9/month - this special pricing never increases."
     },
     {
-        question: "Which calendar systems does CalCon support?",
-        answer: "We currently support Google Calendar and Outlook. All integrations use official calendar APIs with our privacy-first approach, ensuring your data stays secure."
+        question: "What makes CalCon different from other scheduling tools?",
+        answer: "CalCon is the first calendar network built for the AI era. Unlike traditional tools, we enable true two-way scheduling while maintaining complete privacy. Our infrastructure is ready for AI assistants like OpenAI's Operator, preparing your network for the future of scheduling."
     },
     {
-        question: "How is CalCon different from other scheduling tools?",
-        answer: "Unlike traditional tools like Calendly and Cal that only provide one-way booking pages, CalCon enables true two-way scheduling. Once you connect your calendar, both you and your professional contact can easily schedule meetings with each other. This mutual connection builds stronger professional relationships while saving time for everyone involved. Plus, our infrastructure is ready for an OpenAI assistant, preparing your events in the future."
+        question: "How do you protect calendar privacy?",
+        answer: "We take a privacy-first approach. We only see free/busy status - never event details, participant information, meeting titles, or locations. Your calendar privacy stays completely protected while enabling efficient scheduling."
     }
 ]
 
@@ -41,11 +45,11 @@ export function AccordionComponent() {
                         </div>
                     </div>
 
-                    <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 dark:from-white dark:via-blue-300 dark:to-white pb-2">
-                        Frequently Asked Questions
+                    <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#f35f43] via-[#f35f43] to-[#f7b772] dark:from-[#f35f43] dark:via-[#f35f43] dark:to-[#f7b772] pb-2">
+                        Common Questions About Our Launch
                     </h2>
                     <p className="text-gray-600 dark:text-gray-300 mt-4 max-w-2xl mx-auto">
-                    Everything you need to know about getting started with CalCon. Can't find what you're looking for? Contact our support team.
+                        Everything you need to know about joining CalCon's waitlist and our upcoming launch. Have more questions? Join our Discord community.
                     </p>
                 </div>
 

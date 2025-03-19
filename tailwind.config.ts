@@ -15,8 +15,6 @@ const config: Config = {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/**/*.{ts,tsx}",
   ],
-  // Enabling dark mode
-  darkMode: "class", // Assuming you want to enable dark mode based on the class strategy
   theme: {
     // Merging container configuration from the second file
     container: {

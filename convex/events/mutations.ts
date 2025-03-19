@@ -192,11 +192,29 @@ export const deleteEvent = mutation({
     id: v.id("events"),
   },
   handler: async (ctx, args) => {
+    // Get the event first to check if it's confirmed
+    const event = await ctx.db.get(args.id);
+    if (!event) {
+      throw new Error("Event not found");
+    }
+
     // First get all participants for this event
     const participants = await ctx.db
       .query("eventParticipants")
       .withIndex("by_event", (q) => q.eq("eventId", args.id))
       .collect();
+
+    // If the event is confirmed and has calendar links, we need to delete from calendars
+    if (event.status === "confirmed" && event.calendarEventLink) {
+      // Note: The actual calendar deletion will be handled by the client-side
+      // through the Google Calendar API, as we need OAuth tokens
+      
+      // Update event status to cancelled first
+      await ctx.db.patch(args.id, { 
+        status: "cancelled",
+        updatedAt: new Date().toISOString()
+      });
+    }
 
     // Delete all participant entries
     await Promise.all(
@@ -215,7 +233,7 @@ export const deleteEvent = mutation({
 export const updateEventStatus = mutation({
   args: {
     id: v.id("events"),
-    status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("cancelled")),
+    status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("cancelled"), v.literal("archived")),
   },
   handler: async (ctx, args) => {
     const now = new Date().toISOString();
@@ -267,4 +285,27 @@ export const updateEventDateTime = mutation({
 
     return updatedEvent;
   }
+});
+
+// Update event with calendar links
+export const updateEventWithCalendarLinks = mutation({
+  args: {
+    eventId: v.id("events"),
+    calendarEventLink: v.string(),
+    meetLink: v.optional(v.string()),
+    googleCalendarEventId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = new Date().toISOString();
+    
+    await ctx.db.patch(args.eventId, {
+      status: "confirmed",
+      calendarEventLink: args.calendarEventLink,
+      meetLink: args.meetLink,
+      googleCalendarEventId: args.googleCalendarEventId,
+      updatedAt: now,
+    });
+
+    return args.eventId;
+  },
 });

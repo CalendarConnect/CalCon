@@ -14,7 +14,6 @@ import { motion } from "framer-motion";
 import { Github, Menu, Sparkles, Twitter, Youtube } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
-import ModeToggle from "../mode-toggle";
 import { Button } from "../ui/button";
 import {
   SheetContent,
@@ -50,7 +49,7 @@ export default function NavBar() {
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md bg-white/80 dark:bg-black/80"
+      className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md bg-white/80"
     >
       <div className="flex items-center justify-between p-4 max-w-7xl mx-auto">
         {/* Logo - Mobile */}
@@ -65,7 +64,7 @@ export default function NavBar() {
               <SheetHeader className="pb-6 border-b">
                 <SheetTitle className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-blue-600" />
-                  <span>CalCon</span>
+                  <span>CALCON</span>
                 </SheetTitle>
               </SheetHeader>
               <div className="flex flex-col gap-1 mt-6">
@@ -77,7 +76,7 @@ export default function NavBar() {
                     <Link key={item.href} href={item.href} prefetch={true}>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start text-base font-normal h-11 border border-muted/40 mb-2 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/50 dark:hover:text-blue-400 transition-colors"
+                        className="w-full justify-start text-base font-normal h-11 border border-muted/40 mb-2 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                       >
                         {item.title}
                       </Button>
@@ -96,7 +95,7 @@ export default function NavBar() {
                   >
                     <Button
                       variant="ghost"
-                      className="w-full justify-start text-base font-normal h-11 border border-muted/40 mb-2 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/50 dark:hover:text-blue-400 transition-colors"
+                      className="w-full justify-start text-base font-normal h-11 border border-muted/40 mb-2 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                     >
                       <Github className="h-4 w-4 mr-2" />
                       GitHub
@@ -109,7 +108,7 @@ export default function NavBar() {
                   >
                     <Button
                       variant="ghost"
-                      className="w-full justify-start text-base font-normal h-11 border border-muted/40 mb-2 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/50 dark:hover:text-blue-400 transition-colors"
+                      className="w-full justify-start text-base font-normal h-11 border border-muted/40 mb-2 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                     >
                       <Twitter className="h-4 w-4 mr-2" />X (Twitter)
                     </Button>
@@ -121,7 +120,7 @@ export default function NavBar() {
                   >
                     <Button
                       variant="ghost"
-                      className="w-full justify-start text-base font-normal h-11 border border-muted/40 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/50 dark:hover:text-blue-400 transition-colors"
+                      className="w-full justify-start text-base font-normal h-11 border border-muted/40 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                     >
                       <Youtube className="h-4 w-4 mr-2" />
                       YouTube
@@ -143,7 +142,7 @@ export default function NavBar() {
           </Dialog>
           <Link href="/" prefetch={true} className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-blue-600" />
-            <span className="font-semibold">CalCon</span>
+            <span className="font-semibold">CALCON</span>
           </Link>
         </div>
 
@@ -151,7 +150,7 @@ export default function NavBar() {
         <div className="hidden lg:flex items-center gap-2">
           <Link href="/" prefetch={true} className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-blue-600" />
-            <span className="font-semibold">CalCon</span>
+            <span className="font-semibold">CALCON</span>
           </Link>
         </div>
 
@@ -196,7 +195,6 @@ export default function NavBar() {
 
         {/* Right Side */}
         <div className="flex items-center gap-2">
-          <ModeToggle />
           {!userId && (
             <Link href="/sign-in" prefetch={true}>
               <Button

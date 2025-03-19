@@ -23,6 +23,7 @@ import type * as subscriptions from "../subscriptions.js";
 import type * as usage_queries from "../usage/queries.js";
 import type * as users_queries from "../users/queries.js";
 import type * as users from "../users.js";
+import type * as waitlist from "../waitlist.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   "usage/queries": typeof usage_queries;
   "users/queries": typeof users_queries;
   users: typeof users;
+  waitlist: typeof waitlist;
 }>;
 export declare const api: FilterApi<
   typeof fullApi,

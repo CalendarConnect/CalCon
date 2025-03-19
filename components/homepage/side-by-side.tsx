@@ -6,19 +6,19 @@ import { motion } from "motion/react"
 
 const features = [
   {
-    name: 'Find Meeting Times Instantly',
+    name: 'AI-First Scheduling',
     description:
-      'One click finds the perfect time across time zones. What used to take hours now happens in seconds.',
+      "Built for the AI revolution. Ready for OpenAI's Operator and GPT-powered assistants. Experience the future of scheduling from day one.",
     icon: Computer,
   },
   {
-    name: 'Complete Calendar Privacy',
-    description: 'We only show if you are available or not. No event details. No meeting titles. No participant names. No locations. Ever.',
+    name: 'Founding Member Benefits',
+    description: 'Join as one of our first 1000 members. Get lifetime preferred pricing, early access to features, and help shape the future of professional scheduling.',
     icon: FaBusinessTime,
   },
   {
-    name: 'Grow Your Network Naturally',
-    description: 'Every scheduled meeting strengthens your professional network. Connect across any calendar platform with complete confidence.',
+    name: 'Launch Day Priority',
+    description: 'Be among the first to access CalCon on April 2nd. Start building your professional network immediately with our privacy-first calendar system.',
     icon: Network,
   },
 ]
@@ -40,15 +40,15 @@ export default function SideBySide() {
               <div className="mb-6 w-fit rounded-full border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-900/30 px-4 py-1">
                 <div className="flex items-center gap-2 text-sm font-medium text-blue-900 dark:text-blue-200">
                   <Sparkles className="h-4 w-4" />
-                  <span>Why Choose CalCon</span>
+                  <span>Early Access Benefits</span>
                 </div>
               </div>
 
-              <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 dark:from-white dark:via-blue-300 dark:to-white pb-2">
-              Schedule in Seconds. Build Your Network.
+              <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#f35f43] via-[#f35f43] to-[#f7b772] dark:from-[#f35f43] dark:via-[#f35f43] dark:to-[#f7b772] pb-2">
+              Join the Future of Professional Networking
               </h2>
               <p className="mt-6 text-lg text-gray-600 dark:text-gray-300">
-              When checking availability, we only show whether you can meet or not. Nothing else. Each quick scheduling decision builds your professional network, turning routine coordination into valuable business relationships.
+              Be part of the next evolution in calendar networking. Get exclusive benefits, lifetime preferred pricing, and shape the future of professional scheduling. Launching April 2nd.
               </p>
               <dl className="mt-10 max-w-xl space-y-8 text-base leading-7 text-gray-600 lg:max-w-none">
                 {features.map((feature, index) => (

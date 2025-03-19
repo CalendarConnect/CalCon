@@ -302,6 +302,10 @@ function findAvailableSlots(
   const durationMs = duration * 60000;
   let datesChecked = new Set<string>();
 
+  // Get current time in the target timezone
+  const now = new Date();
+  const localNow = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+
   // Convert busy periods to the target timezone and group by participantId
   const participantBusyPeriods = new Map<string, Array<{ start: Date; end: Date }>>();
   
@@ -320,13 +324,16 @@ function findAvailableSlots(
   const totalParticipants = new Set(busyPeriods.map(b => b.participantId)).size;
   console.log("[Calendar] Total unique participants:", totalParticipants);
 
-  // Ensure we're starting at a valid business hour
+  // Ensure we're starting at a valid business hour and not in the past
   currentTime = getNextBusinessHourStart(currentTime);
+  if (currentTime < localNow) {
+    currentTime = getNextBusinessHourStart(localNow);
+  }
   console.log("[Calendar] Starting search from:", currentTime.toLocaleString('en-US', { timeZone: timezone }));
 
   while (currentTime < end && availableSlots.length < 3) {
     // All times are now in the target timezone
-    if (!isBusinessHour(currentTime) || !isWeekday(currentTime)) {
+    if (!isBusinessHour(currentTime) || !isWeekday(currentTime) || currentTime < localNow) {
       currentTime = getNextBusinessHourStart(new Date(currentTime.getTime() + durationMs));
       continue;
     }
@@ -340,6 +347,12 @@ function findAvailableSlots(
     }
 
     const slotEnd = new Date(currentTime.getTime() + durationMs);
+    
+    // Skip slots that end in the past
+    if (slotEnd <= localNow) {
+      currentTime = new Date(currentTime.getTime() + 15 * 60000);
+      continue;
+    }
     
     // Track conflicts per participant
     let hasAnyConflict = false;
@@ -459,5 +472,157 @@ async function exampleUsage() {
     console.log("Available slots:", availableSlots);
   } catch (error) {
     console.error("Error:", error);
+  }
+}
+
+export async function createCalendarEvent(eventDetails: {
+  eventId: Id<"events">;
+  title: string;
+  description: string;
+  location: string;
+  selectedDateTime: string;
+  duration: string;
+  creator: Participant;
+  participants: Participant[];
+  timezone: string;
+}) {
+  console.log("[Calendar] ========== Creating Calendar Event ==========");
+  console.log("[Calendar] Event Details:", eventDetails);
+
+  try {
+    // Get OAuth client using existing function
+    console.log("[Calendar] Getting OAuth client...");
+    const oAuthClient = await getOAuthClient();
+    console.log("[Calendar] ✓ OAuth client obtained");
+
+    const calendar = google.calendar('v3');
+
+    // Get all participant emails (including creator)
+    const allParticipants = [eventDetails.creator, ...eventDetails.participants];
+    console.log("[Calendar] Fetching emails for participants:", allParticipants);
+
+    const participantEmails = await Promise.all(
+      allParticipants.map(async (p) => {
+        try {
+          const user = await clerk.users.getUser(p.clerkUserId);
+          if (!user.primaryEmailAddress?.emailAddress) {
+            console.warn(`[Calendar] ⚠️ No email found for user ${p.clerkUserId}`);
+            return null;
+          }
+          return user.primaryEmailAddress.emailAddress;
+        } catch (error) {
+          console.error(`[Calendar] ❌ Error fetching user ${p.clerkUserId}:`, error);
+          return null;
+        }
+      })
+    );
+
+    const validEmails = participantEmails.filter((email): email is string => email !== null);
+    if (validEmails.length === 0) {
+      throw new Error("No valid participant emails found");
+    }
+
+    // Calculate end time based on duration
+    const startDate = new Date(eventDetails.selectedDateTime);
+    const durationMinutes = durationToMinutes(eventDetails.duration);
+    const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+
+    // Create calendar event
+    const event = {
+      summary: eventDetails.title,
+      description: eventDetails.description,
+      location: eventDetails.location,
+      start: {
+        dateTime: startDate.toISOString(),
+        timeZone: eventDetails.timezone,
+      },
+      end: {
+        dateTime: endDate.toISOString(),
+        timeZone: eventDetails.timezone,
+      },
+      attendees: validEmails.map(email => ({ email })),
+      reminders: {
+        useDefault: true
+      },
+      // Add Google Meet conferencing
+      conferenceData: {
+        createRequest: {
+          requestId: `${eventDetails.eventId}-${Date.now()}`,
+          conferenceSolutionKey: { type: "hangoutsMeet" }
+        }
+      }
+    };
+
+    console.log("[Calendar] Creating event with details:", event);
+
+    const response = await calendar.events.insert({
+      auth: oAuthClient,
+      calendarId: 'primary',
+      requestBody: event,
+      conferenceDataVersion: 1,
+      sendUpdates: 'all' // Send email notifications to attendees
+    });
+
+    console.log("[Calendar] ✓ Event created successfully");
+    console.log("[Calendar] Event ID:", response.data.id);
+    console.log("[Calendar] Event link:", response.data.htmlLink);
+    console.log("[Calendar] Meet link:", response.data.conferenceData?.entryPoints?.[0]?.uri);
+
+    return {
+      success: true,
+      eventId: response.data.id, // Store the actual event ID
+      eventLink: response.data.htmlLink,
+      meetLink: response.data.conferenceData?.entryPoints?.[0]?.uri
+    };
+
+  } catch (error) {
+    console.error("[Calendar] ❌ Error creating calendar event:", error);
+    throw error;
+  }
+}
+
+export async function deleteCalendarEvent({
+  eventId,
+  creator,
+  participants,
+}: {
+  eventId: string;
+  creator: { clerkUserId: string };
+  participants: { clerkUserId: string }[];
+}) {
+  try {
+    console.log("[Calendar] Getting OAuth client for deletion...");
+    const oAuthClient = await getOAuthClient();
+    console.log("[Calendar] ✓ OAuth client obtained");
+
+    const calendar = google.calendar('v3');
+
+    // The eventId should be the direct Google Calendar event ID
+    // that we stored when creating the event
+    console.log("[Calendar] Deleting event with ID:", eventId);
+
+    try {
+      // Delete event from calendar
+      await calendar.events.delete({
+        auth: oAuthClient,
+        calendarId: 'primary',
+        eventId: eventId,
+        sendUpdates: 'all' // Notify all attendees
+      });
+      console.log("[Calendar] ✓ Event deleted successfully");
+    } catch (error: any) {
+      // If the error is 410 Gone, the event was already deleted
+      if (error.status === 410) {
+        console.log("[Calendar] Event was already deleted from Google Calendar");
+        return true;
+      }
+      // For any other error, rethrow it
+      throw error;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("[Calendar] ❌ Error deleting calendar event:", error);
+    throw error;
   }
 }

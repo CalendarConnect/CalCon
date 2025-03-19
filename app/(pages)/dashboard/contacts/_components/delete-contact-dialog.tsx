@@ -26,8 +26,8 @@ interface Contact extends Doc<"contacts"> {
   status: "connected" | "pending" | "declined";
   createdAt: string;
   updatedAt: string;
-  senderName: string;
-  senderEmail: string;
+  senderName?: string;
+  senderEmail?: string;
 }
 
 interface DeleteContactDialogProps {
